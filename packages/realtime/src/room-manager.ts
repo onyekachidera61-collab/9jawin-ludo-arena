@@ -13,6 +13,20 @@ export class RoomManager {
     this.sessions.set(gameId, session);
     return session;
   }
+  async createLobby(ownerPlayerId: string, displayName: string, playerCount: 2 | 4 = 2): Promise<{ id: string; code: string }> {
+    const id = randomUUID();
+    const code = `LUDO-${randomUUID().replaceAll("-", "").slice(0, 4).toUpperCase()}`;
+    await this.store.createRoom({ id, code, ownerPlayerId, ruleset: "STANDARD", playerCount, expiresAt: new Date(Date.now() + 30 * 60_000) });
+    await this.store.addRoomPlayer(id, ownerPlayerId, 0, displayName);
+    return { id, code };
+  }
+
+  async getLobby(roomIdOrCode: string) {
+    const room = await this.store.getRoom(roomIdOrCode);
+    if (!room) return null;
+    return { ...room, players: await this.store.getRoomPlayers(room.id) };
+  }
+
   get(gameId: string): GameSession | undefined { return this.sessions.get(gameId); }
   async load(gameId: string): Promise<GameSession | undefined> {
     const persisted = await this.store.loadGame(gameId);
