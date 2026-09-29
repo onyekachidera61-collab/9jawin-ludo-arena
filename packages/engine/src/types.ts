@@ -44,6 +44,8 @@ export type RuleSet = {
   extraRollOnHome: boolean;
   multipleExtraRollsCollapse: true;
   threeSixesGrantExtraRoll: false;
+  allowStacking: boolean;
+  blockSize: number;
 };
 
 export const STANDARD_RULES: RuleSet = {
@@ -61,5 +63,7 @@ export const STANDARD_RULES: RuleSet = {
   extraRollOnCapture: true,
   extraRollOnHome: true,
   multipleExtraRollsCollapse: true,
-  threeSixesGrantExtraRoll: false
+  threeSixesGrantExtraRoll: false,
+  allowStacking: true,
+  blockSize: 2
 };
