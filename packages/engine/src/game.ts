@@ -2,7 +2,7 @@ import { canMove, moveToken } from "./movement.js";
 import { playerScore } from "./score.js";
 import { absoluteTrackPosition, isSafeSquare } from "./board.js";
 import { canLandAt } from "./occupancy.js";
-import { STANDARD_RULES, type GameState, type PlayerId, type RuleSet, type TokenId, type PendingRoll } from "./types.js";
+import { createLeagueDeck, STANDARD_RULES, type GameState, type PlayerId, type RuleSet, type TokenId, type PendingRoll } from "./types.js";
 
 
 export type GameEvent =
@@ -62,7 +62,9 @@ export function createGame(playerIds: readonly PlayerId[], rules: RuleSet): Game
     pendingRoll: null,
     turnStartedAt: null,
     turnExpiresAt: null,
-    moveCount: 0
+    moveCount: 0,
+    leagueDeck: rules.name === "LEAGUE" ? createLeagueDeck().map((die) => die.value) : undefined,
+    leagueDeckIndex: rules.name === "LEAGUE" ? 0 : undefined
   };
 }
 
