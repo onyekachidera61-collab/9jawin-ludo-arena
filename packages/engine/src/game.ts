@@ -18,6 +18,7 @@ export type RollState = {
   turnId: number;
   playerId: PlayerId;
   value: number;
+  consecutiveSixes: number;
 };
 
 export type TransitionResult = {
@@ -79,7 +80,7 @@ export function recordRoll(
 
   return {
     state: nextState,
-    rollState: { turnId: state.turnId, playerId, value: roll },
+    rollState: { turnId: state.turnId, playerId, value: roll, consecutiveSixes },
     events: [{ type: "DICE_ROLLED", turnId: state.turnId, playerId, roll }]
   };
 }
@@ -109,6 +110,7 @@ export function applyMove(
 ): TransitionResult {
   assertActiveTurn(state, rollState.playerId);
   if (rollState.turnId !== state.turnId) throw new Error("STALE_TURN");
+  if (rollState.consecutiveSixes !== state.consecutiveSixes) throw new Error("STALE_ROLL");
 
   const playerIndex = state.players.findIndex((p) => p.playerId === rollState.playerId);
   if (playerIndex < 0) throw new Error("PLAYER_NOT_FOUND");
