@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS rooms (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, owner_player_id TEXT NOT NULL, ruleset TEXT NOT NULL, player_count INTEGER NOT NULL CHECK (player_count IN (2,4)), status TEXT NOT NULL CHECK (status IN ('WAITING','STARTING','ACTIVE','FINISHED','ABANDONED')), game_id TEXT UNIQUE REFERENCES games(id) ON DELETE SET NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), expires_at TIMESTAMPTZ NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS room_players (room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE, player_id TEXT NOT NULL, slot_index INTEGER NOT NULL, display_name TEXT NOT NULL, ready BOOLEAN NOT NULL DEFAULT false, joined_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (room_id, player_id), UNIQUE (room_id, slot_index));
+CREATE INDEX IF NOT EXISTS rooms_status_idx ON rooms(status);
+CREATE INDEX IF NOT EXISTS rooms_expires_at_idx ON rooms(expires_at);
+CREATE INDEX IF NOT EXISTS room_players_player_idx ON room_players(player_id);
