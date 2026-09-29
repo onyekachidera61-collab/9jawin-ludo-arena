@@ -278,6 +278,7 @@ wss.on("connection", (socket, request) => {
           send(socket, { type: "MATCHMAKING_STATUS", status: "CANCELLED" } as ServerMessage);
           return;
         }
+        if (parsed.ruleset === "LEAGUE") throw new Error("LEAGUE_NOT_READY");
         const match = await store.enqueueMatchmaking(parsed.playerId, parsed.displayName, parsed.ruleset, parsed.playerCount);
         if (!match.matched) {
           playerId = parsed.playerId;
