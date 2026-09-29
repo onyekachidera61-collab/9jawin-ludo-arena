@@ -7,6 +7,8 @@ describe("game transitions", () => {
     const started = startGame(initial);
     expect(started.state.phase).toBe("ACTIVE");
     expect(started.state.turnId).toBe(1);
+    expect(started.state.turnStartedAt).not.toBeNull();
+    expect(started.state.turnExpiresAt).toBe(started.state.turnStartedAt! + STANDARD_RULES.turnDurationMs);
     expect(started.events[0]?.type).toBe("GAME_STARTED");
   });
 
