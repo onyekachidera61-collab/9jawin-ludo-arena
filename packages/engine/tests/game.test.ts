@@ -38,7 +38,7 @@ describe("game transitions", () => {
           : player
       )
     };
-    const rolled = recordRoll(state, 6, "p1");
+    const rolled = recordRoll({ ...state, players: state.players.map((p, i) => i === 0 ? { ...p, tokens: p.tokens.map((t, ti) => ti === 0 ? { ...t, progress: 20, movementPoints: 20 } : t) } : p) }, 6, "p1");
     const moved = applyMove(rolled.state, rolled.rollState, 0, STANDARD_RULES);
     expect(moved.state.players[1]?.tokens[0]?.progress).toBe(-1);
     expect(moved.events.some((event) => event.type === "TOKEN_CAPTURED")).toBe(true);
