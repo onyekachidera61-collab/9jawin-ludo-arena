@@ -129,6 +129,14 @@ wss.on("connection", (socket) => {
         if (!result.gameId) {
           const lobby = await rooms.getLobby(result.room.id);
           send(socket, { type: "ROOM_JOINED", room: lobby, players: lobby?.players ?? [], gameId: null });
+          const existingSocket = socketsByPlayer.get(parsed.playerId);
+          if (existingSocket && existingSocket !== socket && existingSocket.readyState === existingSocket.OPEN) {
+            try {
+              existingSocket.close(4001, "REPLACED_BY_ROOM_JOIN");
+            } catch {
+              // The authoritative socket mapping below still replaces the stale connection.
+            }
+          }
           let members = lobbySockets.get(result.room.id);
           if (!members) {
             members = new Map<string, WebSocket>();
