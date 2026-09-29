@@ -1,5 +1,5 @@
-import type { GameEvent, GameState } from "./game.js";
-import type { RuleSet } from "./types.js";
+import type { GameEvent } from "./game.js";
+import type { GameState, RuleSet } from "./types.js";
 import { assertGameInvariants } from "./invariants.js";
 
 export type ReplayFrame={sequence:number;event:GameEvent;state:GameState|null};
