@@ -139,7 +139,7 @@ export class GameSession {
 
   async move(playerId: PlayerId, tokenId: TokenId): Promise<readonly GameEvent[]> {
     return this.enqueue(async () => {
-      if (this.expireIfNeeded(Date.now())) throw new Error("TURN_EXPIRED");
+      if (await this.expireIfNeeded(Date.now())) throw new Error("TURN_EXPIRED");
       const rollState = this.rollStates.get(playerId);
       if (!rollState) throw new Error("NO_PENDING_ROLL");
 
