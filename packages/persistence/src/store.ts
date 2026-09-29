@@ -51,6 +51,27 @@ export class GameStore {
     await this.pool.query("INSERT INTO rooms (id,code,owner_player_id,ruleset,player_count,status,expires_at) VALUES ($1,$2,$3,$4,$5,'WAITING',$6)", [room.id, room.code, room.ownerPlayerId, room.ruleset, room.playerCount, room.expiresAt]);
   }
 
+  async createRoomWithOwner(room: { id: string; code: string; ownerPlayerId: string; ruleset: string; playerCount: number; expiresAt: Date; displayName: string }): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "INSERT INTO rooms (id,code,owner_player_id,ruleset,player_count,status,expires_at) VALUES ($1,$2,$3,$4,$5,'WAITING',$6)",
+        [room.id, room.code, room.ownerPlayerId, room.ruleset, room.playerCount, room.expiresAt]
+      );
+      await client.query(
+        "INSERT INTO room_players (room_id,player_id,slot_index,display_name) VALUES ($1,$2,0,$3)",
+        [room.id, room.ownerPlayerId, room.displayName]
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async addRoomPlayer(roomId: string, playerId: string, slotIndex: number, displayName: string): Promise<void> {
     await this.pool.query("INSERT INTO room_players (room_id,player_id,slot_index,display_name) VALUES ($1,$2,$3,$4)", [roomId, playerId, slotIndex, displayName]);
   }
