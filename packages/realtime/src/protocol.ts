@@ -3,6 +3,7 @@ import { z } from "zod";
 export const clientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("PING") }),
   z.object({ type: z.literal("JOIN"), roomId: z.string().min(1).max(64), playerId: z.string().min(1).max(128), sessionToken: z.string().min(16).max(512) }),
+  z.object({ type: z.literal("ROOM_JOIN"), roomId: z.string().min(1).max(64), playerId: z.string().min(1).max(128), displayName: z.string().min(3).max(20), sessionToken: z.string().min(16).max(512) }),
   z.object({ type: z.literal("ROLL") }),
   z.object({ type: z.literal("MOVE"), tokenId: z.number().int().min(0).max(3) }),
   z.object({ type: z.literal("RECONNECT"), gameId: z.string().min(1).max(64), sessionToken: z.string().min(16).max(512) })
