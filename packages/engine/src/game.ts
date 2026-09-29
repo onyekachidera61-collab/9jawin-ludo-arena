@@ -2,7 +2,8 @@ import { canMove, moveToken } from "./movement.js";
 import { playerScore } from "./score.js";
 import { absoluteTrackPosition, isSafeSquare } from "./board.js";
 import { canLandAt } from "./occupancy.js";
-import type { GameState, PlayerId, RuleSet, TokenId, PendingRoll } from "./types.js";
+import { STANDARD_RULES, type GameState, type PlayerId, type RuleSet, type TokenId, type PendingRoll } from "./types.js";
+
 
 export type GameEvent =
   | { type: "GAME_STARTED"; turnId: number; playerId: PlayerId }
@@ -12,7 +13,11 @@ export type GameEvent =
   | { type: "TOKEN_REACHED_HOME"; turnId: number; playerId: PlayerId; tokenId: TokenId }
   | { type: "EXTRA_ROLL_GRANTED"; turnId: number; playerId: PlayerId }
   | { type: "TURN_ADVANCED"; turnId: number; playerId: PlayerId }
-  | { type: "GAME_FINISHED"; turnId: number; playerId: PlayerId };
+  | { type: "GAME_FINISHED"; turnId: number; playerId: PlayerId }
+  | { type: "TURN_EXPIRED"; turnId: number; playerId: PlayerId }
+  | { type: "PLAYER_MISSED_TURN"; turnId: number; playerId: PlayerId; missedTurns: number }
+  | { type: "PLAYER_ELIMINATED"; turnId: number; playerId: PlayerId }
+  | { type: "TURN_ADVANCED"; turnId: number; playerId: PlayerId };
 
 export type RollState = {
   turnId: number;
@@ -53,17 +58,25 @@ export function createGame(playerIds: readonly PlayerId[], rules: RuleSet): Game
     turnId: 0,
     consecutiveSixes: 0,
     winnerId: null,
-    pendingRoll: null
+    pendingRoll: null,
+    turnStartedAt: null,
+    turnExpiresAt: null
   };
 }
 
-export function startGame(state: GameState): TransitionResult {
+export function startGame(state: GameState, rules: RuleSet = STANDARD_RULES, now = Date.now()): TransitionResult {
   if (state.phase !== "WAITING") throw new Error("GAME_NOT_WAITING");
   const player = state.players[state.currentPlayerIndex];
   if (!player) throw new Error("CURRENT_PLAYER_MISSING");
 
   return {
-    state: { ...state, phase: "ACTIVE", turnId: 1 },
+    state: {
+      ...state,
+      phase: "ACTIVE",
+      turnId: 1,
+      turnStartedAt: now,
+      turnExpiresAt: now + rules.turnDurationMs
+    },
     events: [{ type: "GAME_STARTED", turnId: 1, playerId: player.playerId }]
   };
 }
@@ -103,6 +116,27 @@ export function getLegalMoves(state: GameState, playerId: PlayerId, roll: number
     if (canLandAt(projected, player, moved.token, rules)) legal.push(token.tokenId);
   }
   return legal;
+}
+
+export function resolveNoLegalMove(
+  state: GameState,
+  rules: RuleSet
+): TransitionResult {
+  const pending = state.pendingRoll;
+  if (!pending) throw new Error("ROLL_NOT_PENDING");
+
+  if (pending.consecutiveSixes < 3 && rules.extraRollOnSix && pending.value === 6) {
+    return {
+      state: { ...state, pendingRoll: null },
+      events: [{
+        type: "EXTRA_ROLL_GRANTED",
+        turnId: state.turnId,
+        playerId: pending.playerId
+      }]
+    };
+  }
+
+  return advanceTurn({ ...state, pendingRoll: null }, rules);
 }
 
 export function applyMove(
@@ -214,7 +248,15 @@ export function applyMove(
   const finished = updatedPlayer.tokens.every((candidate) => candidate.progress === rules.homeProgress);
   if (finished) {
     return {
-      state: { ...state, players, phase: "FINISHED", winnerId: player.playerId, pendingRoll: null },
+      state: {
+        ...state,
+        players,
+        phase: "FINISHED",
+        winnerId: player.playerId,
+        pendingRoll: null,
+        turnStartedAt: null,
+        turnExpiresAt: null
+      },
       events: [...events, {
         type: "GAME_FINISHED",
         turnId: state.turnId,
@@ -241,7 +283,7 @@ export function applyMove(
   return advanceTurn({ ...state, players, pendingRoll: null }, rules);
 }
 
-export function advanceTurn(state: GameState, _rules: RuleSet): TransitionResult {
+export function advanceTurn(state: GameState, rules: RuleSet, now = Date.now()): TransitionResult {
   const nextIndex = findNextEligiblePlayer(state, state.currentPlayerIndex);
   if (nextIndex < 0) {
     return { state, events: [] };
@@ -255,7 +297,9 @@ export function advanceTurn(state: GameState, _rules: RuleSet): TransitionResult
       ...state,
       currentPlayerIndex: nextIndex,
       turnId,
-      consecutiveSixes: 0
+      consecutiveSixes: 0,
+      turnStartedAt: now,
+      turnExpiresAt: now + rules.turnDurationMs
     },
     events: [{
       type: "TURN_ADVANCED",

@@ -15,11 +15,28 @@ export class RoomManager {
     return session;
   }
   async createLobby(ownerPlayerId: string, displayName: string, playerCount: 2 | 4 = 2): Promise<{ id: string; code: string }> {
-    const id = randomUUID();
-    const code = `LUDO-${randomUUID().replaceAll("-", "").slice(0, 4).toUpperCase()}`;
-    await this.store.createRoom({ id, code, ownerPlayerId, ruleset: "STANDARD", playerCount, expiresAt: new Date(Date.now() + 30 * 60_000) });
-    await this.store.addRoomPlayer(id, ownerPlayerId, 0, displayName);
-    return { id, code };
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const id = randomUUID();
+      const code = `LUDO-${randomUUID().replaceAll("-", "").slice(0, 4).toUpperCase()}`;
+      try {
+        await this.store.createRoomWithOwner({
+          id,
+          code,
+          ownerPlayerId,
+          ruleset: "STANDARD",
+          playerCount,
+          expiresAt: new Date(Date.now() + 30 * 60_000),
+          displayName
+        });
+        return { id, code };
+      } catch (error) {
+        const postgresCode = typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code: unknown }).code)
+          : "";
+        if (postgresCode !== "23505" || attempt === 4) throw error;
+      }
+    }
+    throw new Error("ROOM_CREATION_FAILED");
   }
 
   async getLobby(roomIdOrCode: string) {
@@ -36,13 +53,29 @@ export class RoomManager {
     const gameId = randomUUID();
     const waiting = createGame(players.map((p) => p.playerId), STANDARD_RULES);
     const started = startGame(waiting);
-    await this.store.finalizeRoomGame(joined.room.id, gameId, started.state, "STANDARD", players);
+    try {
+      await this.store.finalizeRoomGame(joined.room.id, gameId, started.state, "STANDARD", players);
+    } catch (error) {
+      try {
+        await this.store.resetStartingRoom(joined.room.id);
+      } catch (resetError) {
+        throw new Error(
+          `ROOM_FINALIZATION_FAILED_AND_RESET_FAILED: ${resetError instanceof Error ? resetError.message : "UNKNOWN_RESET_ERROR"}`,
+          { cause: error }
+        );
+      }
+      throw error;
+    }
+    const activeRoom = await this.store.getRoom(joined.room.id);
+    if (!activeRoom || activeRoom.status !== "ACTIVE" || activeRoom.gameId !== gameId) {
+      throw new Error("ROOM_FINALIZATION_MISMATCH");
+    }
     const session = GameSession.fromPersisted(gameId, started.state, 0, this.store);
     this.sessions.set(gameId, session);
 
     return {
       ...joined,
-      room: { ...joined.room, status: "ACTIVE", gameId },
+      room: activeRoom,
       gameId,
       state: started.state,
       events: started.events,
@@ -51,6 +84,22 @@ export class RoomManager {
   }
 
   get(gameId: string): GameSession | undefined { return this.sessions.get(gameId); }
+
+  async recoverActiveGames(): Promise<void> {
+    const gameIds = await this.store.listActiveGameIds();
+    for (const gameId of gameIds) {
+      await this.load(gameId);
+    }
+  }
+
+  async expireTurns(now = Date.now()): Promise<readonly { gameId: string; events: readonly import("@portable-ludo/engine").GameEvent[] }[]> {
+    const expired: Array<{ gameId: string; events: readonly import("@portable-ludo/engine").GameEvent[] }> = [];
+    for (const [gameId, session] of this.sessions) {
+      const events = await session.expireTurn(now);
+      if (events.length > 0) expired.push({ gameId, events });
+    }
+    return expired;
+  }
   async load(gameId: string): Promise<GameSession | undefined> {
     const persisted = await this.store.loadGame(gameId);
     if (!persisted) return undefined;

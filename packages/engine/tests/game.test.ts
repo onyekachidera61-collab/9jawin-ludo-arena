@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STANDARD_RULES, applyMove, createGame, getLegalMoves, recordRoll, startGame } from "../src/index.js";
+import { STANDARD_RULES, applyMove, createGame, getLegalMoves, recordRoll, resolveNoLegalMove, startGame } from "../src/index.js";
 
 describe("game transitions", () => {
   it("starts with the first player's turn", () => {
@@ -7,7 +7,34 @@ describe("game transitions", () => {
     const started = startGame(initial);
     expect(started.state.phase).toBe("ACTIVE");
     expect(started.state.turnId).toBe(1);
+    expect(started.state.turnStartedAt).not.toBeNull();
+    expect(started.state.turnExpiresAt).toBe(started.state.turnStartedAt! + STANDARD_RULES.turnDurationMs);
     expect(started.events[0]?.type).toBe("GAME_STARTED");
+  });
+
+  it("passes a roll when no token can legally move", () => {
+    let state = startGame(createGame(["p1", "p2"], STANDARD_RULES), STANDARD_RULES, 1_000).state;
+    state = {
+      ...state,
+      players: state.players.map((player, index) =>
+        index === 0
+          ? {
+              ...player,
+              score: 224,
+              tokens: player.tokens.map((token) => ({
+                ...token,
+                progress: 56,
+                movementPoints: 56
+              }))
+            }
+          : player
+      )
+    };
+    const rolled = recordRoll(state, 2, "p1");
+    const resolved = resolveNoLegalMove(rolled.state, STANDARD_RULES);
+    expect(resolved.state.currentPlayerIndex).toBe(1);
+    expect(resolved.state.turnId).toBe(2);
+    expect(resolved.state.pendingRoll).toBeNull();
   });
 
   it("rejects a roll from the wrong player", () => {
