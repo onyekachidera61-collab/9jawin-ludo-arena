@@ -11,7 +11,8 @@ export default function JoinRoom() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // Read the optional room query only in the browser so Next.js can prerender this route safely.\n  useEffect(() => {
+  // Read the optional room query only in the browser so Next.js can prerender this route safely.
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const room = params.get("room");
     if (room) setCode(room.toUpperCase());
