@@ -11,12 +11,40 @@ const port = Number(process.env.PORT ?? 4000);
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret || sessionSecret.length < 32) throw new Error("SESSION_SECRET must be at least 32 characters");
 
-const httpServer = createServer((req, res) => {
-  if (req.url === "/health") {
+const httpServer = createServer(async (req, res) => {
+  if (req.url === "/health" && req.method === "GET") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ status: "ok" }));
     return;
   }
+
+  if (req.url === "/guest-session" && req.method === "POST") {
+    try {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(Buffer.from(chunk));
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as { displayName?: unknown };
+      const displayName = typeof body.displayName === "string" ? body.displayName.trim() : "";
+      if (displayName.length < 3 || displayName.length > 20) throw new Error("INVALID_DISPLAY_NAME");
+
+      const playerId = randomUUID();
+      const sessionId = randomUUID();
+      const token = issueSessionToken(playerId, sessionSecret);
+      const claims = verifySessionTokenClaims(token, sessionSecret);
+      const expiresAt = new Date(claims.expiresAt * 1000);
+      await store.createGuestSession(sessionId, playerId, displayName, claims.nonce, expiresAt);
+
+      res.writeHead(201, { "content-type": "application/json", "cache-control": "no-store" });
+      res.end(JSON.stringify({ playerId, displayName, sessionToken: token, expiresAt: expiresAt.toISOString() }));
+      return;
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "INVALID_REQUEST";
+      const status = code === "INVALID_DISPLAY_NAME" ? 400 : 500;
+      res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" });
+      res.end(JSON.stringify({ error: code }));
+      return;
+    }
+  }
+
   res.writeHead(404);
   res.end();
 });
