@@ -192,6 +192,14 @@ export class GameStore {
       const startPlayerId = state.players[state.currentPlayerIndex]?.playerId;
       if (!startPlayerId) throw new Error("GAME_START_PLAYER_MISSING");
       const startEvent = { type: "GAME_STARTED", turnId: state.turnId, playerId: startPlayerId };
+      for (const player of state.players) {
+        for (const token of player.tokens) {
+          await client.query(
+            "INSERT INTO game_tokens (game_id,player_id,token_id,progress,movement_points,home_multiplier_applied) VALUES ($1,$2,$3,$4,$5,$6)",
+            [gameId,player.playerId,token.tokenId,token.progress,token.movementPoints,token.homeMultiplierApplied]
+          );
+        }
+      }
       await client.query(
         "INSERT INTO game_events (event_id,game_id,sequence_number,event_type,player_id,payload,server_timestamp) VALUES ($1,$2,1,$3,$4,$5,$6)",
         [randomUUID(), gameId, startEvent.type, startPlayerId, JSON.stringify(startEvent), new Date()]
