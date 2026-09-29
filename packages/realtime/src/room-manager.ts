@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { GameSession } from "./game-session.js";
-import type { GameStore } from "@portable-ludo/persistence";
+import { createRoom, addRoomPlayer, getRoom, getRoomPlayers, type GameStore } from "@portable-ludo/persistence";
 
 export class RoomManager {
   private readonly sessions = new Map<string, GameSession>();
@@ -16,6 +16,20 @@ export class RoomManager {
     }
     this.sessions.set(gameId, session);
     return session;
+  }
+
+  async createLobby(ownerPlayerId: string, displayName: string, playerCount: 2 | 4 = 2): Promise<{ id: string; code: string }> {
+    const id = randomUUID();
+    const code = `LUDO-${randomUUID().replaceAll("-", "").slice(0, 4).toUpperCase()}`;
+    await createRoom(this.store["pool"], { id, code, ownerPlayerId, ruleset: "STANDARD", playerCount, expiresAt: new Date(Date.now() + 30 * 60_000) });
+    await addRoomPlayer(this.store["pool"], id, ownerPlayerId, 0, displayName);
+    return { id, code };
+  }
+
+  async lobby(roomIdOrCode: string): Promise<{ id: string; code: string; playerCount: number; status: string; players: Awaited<ReturnType<typeof getRoomPlayers>> } | null> {
+    const room = await getRoom(this.store["pool"], roomIdOrCode);
+    if (!room) return null;
+    return { id: room.id, code: room.code, playerCount: room.playerCount, status: room.status, players: await getRoomPlayers(this.store["pool"], room.id) };
   }
 
   get(gameId: string): GameSession | undefined {
