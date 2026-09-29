@@ -84,6 +84,22 @@ export class RoomManager {
   }
 
   get(gameId: string): GameSession | undefined { return this.sessions.get(gameId); }
+
+  async recoverActiveGames(): Promise<void> {
+    const gameIds = await this.store.listActiveGameIds();
+    for (const gameId of gameIds) {
+      await this.load(gameId);
+    }
+  }
+
+  async expireTurns(now = Date.now()): Promise<readonly { gameId: string; events: readonly import("@portable-ludo/engine").GameEvent[] }[]> {
+    const expired: Array<{ gameId: string; events: readonly import("@portable-ludo/engine").GameEvent[] }> = [];
+    for (const [gameId, session] of this.sessions) {
+      const events = await session.expireTurn(now);
+      if (events.length > 0) expired.push({ gameId, events });
+    }
+    return expired;
+  }
   async load(gameId: string): Promise<GameSession | undefined> {
     const persisted = await this.store.loadGame(gameId);
     if (!persisted) return undefined;
