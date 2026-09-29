@@ -268,6 +268,40 @@ wss.on("connection", (socket, request) => {
         return;
       }
 
+      if (parsed.type === "MATCHMAKING_JOIN" || parsed.type === "MATCHMAKING_CANCEL") {
+        const claims = verifySessionTokenClaims(parsed.sessionToken, sessionSecret);
+        if (claims.playerId !== parsed.playerId) throw new Error("SESSION_PLAYER_MISMATCH");
+        const guest = await store.getGuestSession(claims.playerId, claims.nonce);
+        if (!guest || guest.displayName !== parsed.displayName) throw new Error("INVALID_SESSION");
+        if (parsed.type === "MATCHMAKING_CANCEL") {
+          await store.cancelMatchmaking(parsed.playerId, parsed.ruleset, parsed.playerCount);
+          send(socket, { type: "MATCHMAKING_STATUS", status: "CANCELLED" } as ServerMessage);
+          return;
+        }
+        const match = await store.enqueueMatchmaking(parsed.playerId, parsed.displayName, parsed.ruleset, parsed.playerCount);
+        if (!match.matched) {
+          send(socket, { type: "MATCHMAKING_STATUS", status: "WAITING", playerCount: parsed.playerCount, ruleset: parsed.ruleset } as ServerMessage);
+          return;
+        }
+        const session = await rooms.create(match.playerIds);
+        await session.start();
+        playerId = parsed.playerId;
+        gameId = session.gameId;
+        for (const matchedPlayerId of match.playerIds) {
+          const matchedSocket = socketsByPlayer.get(matchedPlayerId);
+          if (matchedSocket) {
+            session.join(matchedPlayerId);
+            send(matchedSocket, { type: "MATCHMAKING_STATUS", status: "MATCHED", gameId: session.gameId } as ServerMessage);
+            send(matchedSocket, { type: "STATE", gameId: session.gameId, state: session.snapshot().state });
+          }
+        }
+        socketsByPlayer.set(playerId, socket);
+        session.join(playerId);
+        send(socket, { type: "MATCHMAKING_STATUS", status: "MATCHED", gameId: session.gameId } as ServerMessage);
+        send(socket, { type: "STATE", gameId: session.gameId, state: session.snapshot().state });
+        return;
+      }
+
       if (!playerId || !gameId) throw new Error("NOT_JOINED");
       const session = rooms.get(gameId);
       if (!session) throw new Error("GAME_NOT_FOUND");
