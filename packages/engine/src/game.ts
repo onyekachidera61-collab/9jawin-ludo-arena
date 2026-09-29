@@ -1,6 +1,7 @@
 import { canMove, moveToken } from "./movement.js";
 import { playerScore } from "./score.js";
 import { absoluteTrackPosition, isSafeSquare } from "./board.js";
+import { canLandAt } from "./occupancy.js";
 import type { GameState, PlayerId, RuleSet, TokenId } from "./types.js";
 
 export type GameEvent =
@@ -112,6 +113,7 @@ export function applyMove(
   );
   let captured: { playerIndex: number; tokenIndex: number; playerId: PlayerId; tokenId: TokenId } | null = null;
   const movedTrack = absoluteTrackPosition(player, moved.token, rules);
+  if (!canLandAt(basePlayers, player, moved.token, rules)) throw new Error("BLOCKED_DESTINATION");
   if (movedTrack !== null && !isSafeSquare(movedTrack, rules)) {
     for (let opponentIndex = 0; opponentIndex < basePlayers.length; opponentIndex += 1) {
       if (opponentIndex === playerIndex) continue;
@@ -235,14 +237,6 @@ export function advanceTurn(state: GameState, rules: RuleSet): TransitionResult 
       playerId: nextPlayer.playerId
     }]
   };
-}
-
-function trackPosition(colorIndex: number, progress: number, rules: RuleSet): number | null {
-  if (progress < 0 || progress > rules.trackLength - 1) return null;
-  const startOffsets = [0, 13, 26, 39] as const;
-  const start = startOffsets[colorIndex as 0 | 1 | 2 | 3];
-  if (start === undefined) return null;
-  return (start + progress) % rules.trackLength;
 }
 
 function findNextEligiblePlayer(state: GameState, currentIndex: number): number {
