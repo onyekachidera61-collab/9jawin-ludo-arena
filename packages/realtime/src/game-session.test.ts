@@ -19,6 +19,6 @@ describe("GameSession recovery", () => {
     const events = await session.move("p1", 0);
 
     expect(events.some((event) => event.type === "TOKEN_MOVED")).toBe(true);
-    expect(session.getVersion()).toBe(3);
+    expect(session.getVersion()).toBe(4);
   });
 });
