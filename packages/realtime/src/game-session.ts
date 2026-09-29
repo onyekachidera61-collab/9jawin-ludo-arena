@@ -63,6 +63,8 @@ export class GameSession {
 
   getState(): GameState { return this.state; }
 
+  getStoreVersion(): number { return this.version; }
+
   start(): readonly GameEvent[] {
     const result = startGame(this.state);
     this.state = result.state;
