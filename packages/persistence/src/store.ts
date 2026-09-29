@@ -185,6 +185,11 @@ export class GameStore {
     );
   }
 
+  async listActiveGameIds(): Promise<readonly string[]> {
+    const result = await this.pool.query("SELECT id FROM games WHERE phase='ACTIVE' ORDER BY created_at ASC");
+    return result.rows.map((row) => String((row as { id: string }).id));
+  }
+
   async loadGame(id: string): Promise<PersistedGame | null> {
     const result = await this.pool.query(
       "SELECT id, phase, ruleset, state_json, version FROM games WHERE id=$1",
