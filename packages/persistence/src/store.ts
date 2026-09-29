@@ -222,6 +222,10 @@ export class GameStore {
     if (result.rowCount !== 1) throw new Error("ROOM_RESET_FAILED");
   }
 
+  async markBotGame(gameId:string,difficulty:"EASY"|"NORMAL"|"HARD"):Promise<void> {
+    await this.pool.query("INSERT INTO bot_games(game_id,difficulty) VALUES ($1,$2) ON CONFLICT (game_id) DO UPDATE SET difficulty=EXCLUDED.difficulty",[gameId,difficulty]);
+  }
+
   async createGame(id: string, state: GameState, ruleset: string): Promise<void> {
     await this.pool.query(
       "INSERT INTO games (id, phase, ruleset, state_json, version) VALUES ($1,$2,$3,$4,0)",
