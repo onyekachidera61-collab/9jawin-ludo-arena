@@ -107,4 +107,23 @@ describe("game transitions", () => {
     expect(moved.events.some((event) => event.type === "EXTRA_ROLL_GRANTED")).toBe(false);
   });
 
+  it("does not allow the same pending roll to be consumed twice", () => {
+    const state = startGame(createGame(["p1", "p2"], STANDARD_RULES)).state;
+    const rolled = recordRoll(state, 6, "p1");
+    const moved = applyMove(rolled.state, rolled.rollState, 0, STANDARD_RULES);
+    expect(moved.state.pendingRoll).toBeNull();
+    expect(() => applyMove(moved.state, rolled.rollState, 1, STANDARD_RULES)).toThrow("ROLL_NOT_PENDING");
+  });
+
+  it("preserves score as the sum of token contributions after movement", () => {
+    const state = startGame(createGame(["p1", "p2"], STANDARD_RULES)).state;
+    const rolled = recordRoll(state, 6, "p1");
+    const moved = applyMove(rolled.state, rolled.rollState, 0, STANDARD_RULES);
+    const player = moved.state.players[0]!;
+    expect(player.score).toBe(player.tokens.reduce(
+      (sum, token) => sum + token.movementPoints * (token.homeMultiplierApplied ? 2 : 1),
+      0
+    ));
+  });
+
 });
