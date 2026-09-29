@@ -4,7 +4,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { clientMessageSchema, type ClientMessage, type ServerMessage } from "./protocol.js";
 import { RoomManager } from "./room-manager.js";
 import { issueSessionToken, verifySessionToken, verifySessionTokenClaims } from "./session-tokens.js";
-import { chooseBotMove, STANDARD_RULES, type TokenId } from "@portable-ludo/engine";
+import { chooseBotMove, STANDARD_RULES, LEAGUE_RULES, type TokenId } from "@portable-ludo/engine";
 import { createPool, GameStore } from "@portable-ludo/persistence";
 
 const port = Number(process.env.PORT ?? 4000);
@@ -16,7 +16,10 @@ if (!sessionSecret || sessionSecret.length < 32) throw new Error("SESSION_SECRET
 const httpServer = createServer(async (req, res) => {
   res.setHeader("access-control-allow-origin", webOrigin);
   res.setHeader("access-control-allow-methods", "GET,POST,OPTIONS");
-  res.setHeader("access-control-allow-headers", "content-type");
+  res.setHeader("access-control-allow-headers", "content-type, authorization");
+  res.setHeader("x-content-type-options","nosniff");
+  res.setHeader("x-frame-options","DENY");
+  res.setHeader("referrer-policy","no-referrer");
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
   if (req.url === "/health" && req.method === "GET") {
     try {
@@ -55,6 +58,7 @@ const httpServer = createServer(async (req, res) => {
       if (recent.length >= 10) throw new Error("RATE_LIMITED");
       recent.push(now);
       guestRequestLog.set(address, recent);
+      if (guestRequestLog.size > 5000) for (const [key,timestamps] of guestRequestLog) { if (timestamps.length===0 || now-timestamps[timestamps.length-1]!>120000) guestRequestLog.delete(key); }
       const chunks: Buffer[] = [];
       let size = 0;
       for await (const chunk of req) { const buffer = Buffer.from(chunk); size += buffer.length; if (size > 4096) throw new Error("REQUEST_TOO_LARGE"); chunks.push(buffer); }
@@ -145,6 +149,9 @@ const httpServer = createServer(async (req, res) => {
 });
 
 const wss = new WebSocketServer({ server: httpServer, maxPayload: 16 * 1024 });
+const socketRequestLog = new WeakMap<WebSocket,{started:number;count:number}>();
+const MAX_SOCKET_MESSAGES_PER_WINDOW = 60;
+const SOCKET_WINDOW_MS = 10_000;
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required");
 const store = new GameStore(createPool(databaseUrl));
@@ -180,6 +187,10 @@ wss.on("connection", (socket, request) => {
   let gameId: string | null = null;
 
   socket.on("message", async (raw) => {
+    const now = Date.now();
+    const bucket = socketRequestLog.get(socket);
+    if (!bucket || now-bucket.started>=SOCKET_WINDOW_MS) socketRequestLog.set(socket,{started:now,count:1});
+    else { bucket.count += 1; if (bucket.count > MAX_SOCKET_MESSAGES_PER_WINDOW) { send(socket,{type:"ERROR",code:"RATE_LIMITED",message:"Too many realtime commands."}); return; } }
     let parsed: ClientMessage;
     try {
       parsed = clientMessageSchema.parse(JSON.parse(raw.toString()));
@@ -220,7 +231,7 @@ wss.on("connection", (socket, request) => {
         const guest = await store.getGuestSession(claims.playerId, claims.nonce);
         if (!guest) throw new Error("INVALID_SESSION");
 
-        const room = await rooms.createLobby(guest.playerId, guest.displayName, parsed.playerCount, parsed.ruleset);
+        const room = await rooms.createLobby(guest.playerId, guest.displayName, parsed.playerCount, parsed.ruleset, { turnDurationMs: parsed.turnDurationMs, botSlots: parsed.botSlots, botDifficulty: parsed.botDifficulty });
         playerId = guest.playerId;
         gameId = null;
 
@@ -298,6 +309,7 @@ wss.on("connection", (socket, request) => {
         socketsByPlayer.set(playerId, socket);
         session.join(playerId);
         send(socket, { type: "ROOM_JOINED", room: activeLobby, players: result.players ?? [], gameId: result.gameId });
+        if ((result.players ?? []).some((p: any) => String(p.playerId).startsWith("bot-"))) botGames.set(result.gameId, { botIds: new Set((result.players ?? []).filter((p: any) => String(p.playerId).startsWith("bot-")).map((p: any) => String(p.playerId))), difficulty: activeLobby.botDifficulty === "EASY" || activeLobby.botDifficulty === "HARD" ? activeLobby.botDifficulty : "NORMAL" });
         send(socket, { type: "STATE", gameId, state: session.snapshot().state });
         return;
       }
@@ -367,7 +379,7 @@ wss.on("connection", (socket, request) => {
           send(socket, { type: "MATCHMAKING_STATUS", status: "WAITING", playerCount: parsed.playerCount, ruleset: parsed.ruleset });
           return;
         }
-        const session = await rooms.create(match.playerIds, parsed.ruleset === "LEAGUE" ? (await import("@portable-ludo/engine")).LEAGUE_RULES : (await import("@portable-ludo/engine")).STANDARD_RULES);
+        const session = await rooms.create(match.playerIds, parsed.ruleset === "LEAGUE" ? LEAGUE_RULES : STANDARD_RULES);
         await session.start();
         playerId = parsed.playerId;
         gameId = session.gameId;
