@@ -15,7 +15,7 @@ export type PlayerState = {
   score: number;
   consecutiveMissedTurns: number;
   eliminated: boolean;
-  timebankRemainingMs: number;
+  timebankRemainingMs?: number;
 };
 
 export type GamePhase = "WAITING" | "ACTIVE" | "FINISHED";
