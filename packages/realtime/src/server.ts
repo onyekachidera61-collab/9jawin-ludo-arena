@@ -4,6 +4,7 @@ import { clientMessageSchema, type ClientMessage, type ServerMessage } from "./p
 import { RoomManager } from "./room-manager.js";
 import { verifySessionToken } from "./session-tokens.js";
 import type { TokenId } from "@portable-ludo/engine";
+import { createPool, GameStore } from "@portable-ludo/persistence";
 
 const port = Number(process.env.PORT ?? 4000);
 const sessionSecret = process.env.SESSION_SECRET;
@@ -20,7 +21,10 @@ const httpServer = createServer((req, res) => {
 });
 
 const wss = new WebSocketServer({ server: httpServer, maxPayload: 16 * 1024 });
-const rooms = new RoomManager();
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL is required");
+const store = new GameStore(createPool(databaseUrl));
+const rooms = new RoomManager(store);
 const socketsByPlayer = new Map<string, WebSocket>();
 
 function send(socket: WebSocket, message: ServerMessage): void {
@@ -33,7 +37,11 @@ function errorMessage(error: unknown): ServerMessage {
 }
 
 function broadcast(gameId: string, message: ServerMessage): void {
-  for (const socket of socketsByPlayer.values()) send(socket, message);
+  for (const [connectedPlayerId, socket] of socketsByPlayer) {
+    const session = rooms.get(gameId);
+    if (!session) continue;
+    if (session.snapshot().state.players.some((p) => p.playerId === connectedPlayerId)) send(socket, message);
+  }
 }
 
 wss.on("connection", (socket) => {
