@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STANDARD_RULES, applyMove, createGame, recordRoll, startGame } from "../src/index.js";
+import { STANDARD_RULES, applyMove, createGame, getLegalMoves, recordRoll, startGame } from "../src/index.js";
 
 describe("game transitions", () => {
   it("starts with the first player's turn", () => {
@@ -73,7 +73,6 @@ describe("game transitions", () => {
   });
 
   it("enumerates only legal tokens for a roll", async () => {
-    const { getLegalMoves } = await import("../src/index.js");
     const state = startGame(createGame(["p1", "p2"], STANDARD_RULES)).state;
     expect(getLegalMoves(state, "p1", 6, STANDARD_RULES)).toEqual([0, 1, 2, 3]);
   });
@@ -87,6 +86,25 @@ describe("game transitions", () => {
       0,
       STANDARD_RULES
     )).toThrow("STALE_TURN");
+  });
+
+  it("rejects a roll whose six counter no longer matches state", () => {
+    const state = startGame(createGame(["p1", "p2"], STANDARD_RULES)).state;
+    const rolled = recordRoll(state, 6, "p1");
+    expect(() => applyMove(
+      { ...rolled.state, consecutiveSixes: 0 },
+      rolled.rollState,
+      0,
+      STANDARD_RULES
+    )).toThrow("STALE_ROLL");
+  });
+
+  it("respects disabled extra-roll configuration", () => {
+    const rules = { ...STANDARD_RULES, extraRollOnSix: false };
+    const state = startGame(createGame(["p1", "p2"], rules)).state;
+    const rolled = recordRoll(state, 6, "p1");
+    const moved = applyMove(rolled.state, rolled.rollState, 0, rules);
+    expect(moved.events.some((event) => event.type === "EXTRA_ROLL_GRANTED")).toBe(false);
   });
 
 });
