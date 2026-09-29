@@ -38,6 +38,8 @@ export type GameState = {
   turnStartedAt: number | null;
   turnExpiresAt: number | null;
   moveCount?: number;
+  leagueDeck?: readonly number[];
+  leagueDeckIndex?: number;
 };
 
 export type RuleSet = {
