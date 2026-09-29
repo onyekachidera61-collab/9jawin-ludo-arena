@@ -9,9 +9,15 @@ import { createPool, GameStore } from "@portable-ludo/persistence";
 
 const port = Number(process.env.PORT ?? 4000);
 const sessionSecret = process.env.SESSION_SECRET;
+const webOrigin = process.env.WEB_ORIGIN ?? "*";
+const guestRequestLog = new Map<string, number[]>();
 if (!sessionSecret || sessionSecret.length < 32) throw new Error("SESSION_SECRET must be at least 32 characters");
 
 const httpServer = createServer(async (req, res) => {
+  res.setHeader("access-control-allow-origin", webOrigin);
+  res.setHeader("access-control-allow-methods", "GET,POST,OPTIONS");
+  res.setHeader("access-control-allow-headers", "content-type");
+  if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
   if (req.url === "/health" && req.method === "GET") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ status: "ok" }));
@@ -20,8 +26,15 @@ const httpServer = createServer(async (req, res) => {
 
   if (req.url === "/guest-session" && req.method === "POST") {
     try {
+      const address = req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+      const now = Date.now();
+      const recent = (guestRequestLog.get(address) ?? []).filter((timestamp) => now - timestamp < 60_000);
+      if (recent.length >= 10) throw new Error("RATE_LIMITED");
+      recent.push(now);
+      guestRequestLog.set(address, recent);
       const chunks: Buffer[] = [];
-      for await (const chunk of req) chunks.push(Buffer.from(chunk));
+      let size = 0;
+      for await (const chunk of req) { const buffer = Buffer.from(chunk); size += buffer.length; if (size > 4096) throw new Error("REQUEST_TOO_LARGE"); chunks.push(buffer); }
       const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as { displayName?: unknown };
       const displayName = typeof body.displayName === "string" ? body.displayName.trim() : "";
       if (displayName.length < 3 || displayName.length > 20) throw new Error("INVALID_DISPLAY_NAME");
@@ -38,7 +51,7 @@ const httpServer = createServer(async (req, res) => {
       return;
     } catch (error) {
       const code = error instanceof Error ? error.message : "INVALID_REQUEST";
-      const status = code === "INVALID_DISPLAY_NAME" ? 400 : 500;
+      const status = code === "INVALID_DISPLAY_NAME" || code === "REQUEST_TOO_LARGE" ? 400 : code === "RATE_LIMITED" ? 429 : 500;
       res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" });
       res.end(JSON.stringify({ error: code }));
       return;
@@ -74,7 +87,12 @@ function broadcast(gameId: string, message: ServerMessage): void {
   }
 }
 
-wss.on("connection", (socket) => {
+wss.on("connection", (socket, request) => {
+  const origin = request.headers.origin;
+  if (webOrigin !== "*" && origin && origin !== webOrigin) {
+    socket.close(1008, "ORIGIN_NOT_ALLOWED");
+    return;
+  }
   let playerId: string | null = null;
   let gameId: string | null = null;
 
