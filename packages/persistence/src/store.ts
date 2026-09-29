@@ -265,11 +265,27 @@ export class GameStore {
       let sequence = expectedVersion;
       for (const event of events) {
         sequence += 1;
+        const eventId = randomUUID();
         await client.query(
-          "INSERT INTO game_events (game_id,sequence_number,event_type,player_id,payload) VALUES ($1,$2,$3,$4,$5)",
-          [id, sequence, event.type, "playerId" in event ? event.playerId : null, JSON.stringify(event)]
+          "INSERT INTO game_events (event_id,game_id,sequence_number,event_type,player_id,payload,server_timestamp) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+          [eventId, id, sequence, event.type, "playerId" in event ? event.playerId : null, JSON.stringify(event), new Date()]
         );
+        if (event.type === "DICE_ROLLED") {
+          await client.query(
+            "INSERT INTO game_moves (game_id,turn_id,player_id,token_id,dice_value,move_distance) VALUES ($1,$2,$3,NULL,$4,NULL)",
+            [id, event.turnId, event.playerId, event.roll]
+          );
+        } else if (event.type === "TOKEN_MOVED") {
+          await client.query(
+            "INSERT INTO game_moves (game_id,turn_id,player_id,token_id,dice_value,move_distance) VALUES ($1,$2,$3,$4,NULL,$5)",
+            [id, event.turnId, event.playerId, event.tokenId, event.distance]
+          );
+        }
       }
+      await client.query(
+        "INSERT INTO game_snapshots (game_id,sequence_number,state_json) VALUES ($1,$2,$3) ON CONFLICT (game_id,sequence_number) DO UPDATE SET state_json=EXCLUDED.state_json",
+        [id, nextVersion, JSON.stringify(state)]
+      );
       await client.query("COMMIT");
       return nextVersion;
     } catch (error) {
