@@ -82,3 +82,47 @@ export function createPool(databaseUrl: string): Pool {
   return new Pool({ connectionString: databaseUrl, max: 10, idleTimeoutMillis: 30_000 });
 }
 
+
+export type RoomRecord = {
+  id: string;
+  code: string;
+  ownerPlayerId: string;
+  ruleset: string;
+  playerCount: number;
+  status: string;
+  gameId: string | null;
+};
+
+export async function createRoom(
+  pool: Pool,
+  room: { id: string; code: string; ownerPlayerId: string; ruleset: string; playerCount: number; expiresAt: Date }
+): Promise<void> {
+  await pool.query(
+    "INSERT INTO rooms (id,code,owner_player_id,ruleset,player_count,status,expires_at) VALUES ($1,$2,$3,$4,$5,'WAITING',$6)",
+    [room.id, room.code, room.ownerPlayerId, room.ruleset, room.playerCount, room.expiresAt]
+  );
+}
+
+export async function addRoomPlayer(pool: Pool, roomId: string, playerId: string, slotIndex: number, displayName: string): Promise<void> {
+  await pool.query(
+    "INSERT INTO room_players (room_id,player_id,slot_index,display_name) VALUES ($1,$2,$3,$4)",
+    [roomId, playerId, slotIndex, displayName]
+  );
+}
+
+export async function getRoom(pool: Pool, roomIdOrCode: string): Promise<RoomRecord | null> {
+  const result = await pool.query(
+    "SELECT id,code,owner_player_id,ruleset,player_count,status,game_id FROM rooms WHERE (id=$1 OR code=$1) AND expires_at > now()",
+    [roomIdOrCode]
+  );
+  const row = result.rows[0] as { id:string; code:string; owner_player_id:string; ruleset:string; player_count:number; status:string; game_id:string|null } | undefined;
+  return row ? { id:row.id, code:row.code, ownerPlayerId:row.owner_player_id, ruleset:row.ruleset, playerCount:row.player_count, status:row.status, gameId:row.game_id } : null;
+}
+
+export async function getRoomPlayers(pool: Pool, roomId: string): Promise<Array<{playerId:string; slotIndex:number; displayName:string; ready:boolean}>> {
+  const result = await pool.query(
+    "SELECT player_id,slot_index,display_name,ready FROM room_players WHERE room_id=$1 ORDER BY slot_index",
+    [roomId]
+  );
+  return result.rows.map((row) => ({ playerId:String(row.player_id), slotIndex:Number(row.slot_index), displayName:String(row.display_name), ready:Boolean(row.ready) }));
+}
