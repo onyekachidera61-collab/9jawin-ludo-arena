@@ -216,7 +216,7 @@ wss.on("connection", (socket, request) => {
         const events = await session.start();
         playerId = guest.playerId;
         gameId = session.gameId;
-        socketsByPlayer.set(playerId, socket);
+        socketsByPlayer.set(guest.playerId, socket);
         send(socket, { type: "MATCHMAKING_STATUS", status: "MATCHED", gameId: session.gameId });
         send(socket, { type: "EVENTS", gameId: session.gameId, events });
         send(socket, { type: "STATE", gameId: session.gameId, state: session.snapshot().state });
@@ -234,7 +234,8 @@ wss.on("connection", (socket, request) => {
         const guest = await store.getGuestSession(claims.playerId, claims.nonce);
         if (!guest) throw new Error("INVALID_SESSION");
 
-        const room = await rooms.createLobby(guest.playerId, guest.displayName, parsed.playerCount, parsed.ruleset, { turnDurationMs: parsed.turnDurationMs, botSlots: parsed.botSlots, botDifficulty: parsed.botDifficulty });
+        const roomOptions = Object.fromEntries(Object.entries({ turnDurationMs: parsed.turnDurationMs, botSlots: parsed.botSlots, botDifficulty: parsed.botDifficulty }).filter(([, value]) => value !== undefined)) as { turnDurationMs?: number; botSlots?: number; botDifficulty?: "EASY" | "NORMAL" | "HARD" };
+        const room = await rooms.createLobby(guest.playerId, guest.displayName, parsed.playerCount, parsed.ruleset, roomOptions);
         playerId = guest.playerId;
         gameId = null;
 
@@ -313,7 +314,7 @@ wss.on("connection", (socket, request) => {
         session.join(playerId);
         send(socket, { type: "ROOM_JOINED", room: activeLobby, players: result.players ?? [], gameId: result.gameId });
         if ((result.players ?? []).some((p: any) => String(p.playerId).startsWith("bot-"))) botGames.set(result.gameId, { botIds: new Set((result.players ?? []).filter((p: any) => String(p.playerId).startsWith("bot-")).map((p: any) => String(p.playerId))), difficulty: activeLobby.botDifficulty === "EASY" || activeLobby.botDifficulty === "HARD" ? activeLobby.botDifficulty : "NORMAL" });
-        send(socket, { type: "STATE", gameId, state: session.snapshot().state });
+        send(socket, { type: "STATE", gameId: result.gameId, state: session.snapshot().state });
         return;
       }
 
@@ -368,7 +369,8 @@ wss.on("connection", (socket, request) => {
         const claims = verifySessionTokenClaims(parsed.sessionToken, sessionSecret);
         if (claims.playerId !== parsed.playerId) throw new Error("SESSION_PLAYER_MISMATCH");
         const guest = await store.getGuestSession(claims.playerId, claims.nonce);
-        if (!guest || guest.displayName !== parsed.displayName) throw new Error("INVALID_SESSION");
+        if (!guest) throw new Error("INVALID_SESSION");
+        if (parsed.type === "MATCHMAKING_JOIN" && guest.displayName !== parsed.displayName) throw new Error("INVALID_SESSION");
         if (parsed.type === "MATCHMAKING_CANCEL") {
           await store.cancelMatchmaking(parsed.playerId, parsed.ruleset, parsed.playerCount);
           send(socket, { type: "MATCHMAKING_STATUS", status: "CANCELLED" } as ServerMessage);
