@@ -8,12 +8,12 @@ export async function createGuest(displayName:string):Promise<Session>{
   const body=await response.json() as Record<string,unknown>;
   if(!response.ok) throw new Error(String(body.error||"GUEST_SESSION_FAILED"));
   const session=body as unknown as Session;
-  sessionStorage.setItem("portable-ludo-session",JSON.stringify(session));
+  localStorage.setItem("portable-ludo-session",JSON.stringify(session));
   return session;
 }
 
 export function getSession():Session{
-  const raw=sessionStorage.getItem("portable-ludo-session");
+  const raw=localStorage.getItem("portable-ludo-session");
   if(!raw) throw new Error("NO_GUEST_SESSION");
   return JSON.parse(raw) as Session;
 }
