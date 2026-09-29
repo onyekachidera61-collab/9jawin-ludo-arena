@@ -293,10 +293,31 @@ export class GameStore {
           );
         }
       }
-      await client.query(
+      for (const player of state.players) {
+        for (const token of player.tokens) {
+          await client.query(
+            "INSERT INTO game_tokens (game_id,player_id,token_id,progress,movement_points,home_multiplier_applied) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (game_id,player_id,token_id) DO UPDATE SET progress=EXCLUDED.progress,movement_points=EXCLUDED.movement_points,home_multiplier_applied=EXCLUDED.home_multiplier_applied",
+            [id, player.playerId, token.tokenId, token.progress, token.movementPoints, token.homeMultiplierApplied]
+          );
+        }
+      }
+            await client.query(
         "INSERT INTO game_snapshots (game_id,sequence_number,state_json) VALUES ($1,$2,$3) ON CONFLICT (game_id,sequence_number) DO UPDATE SET state_json=EXCLUDED.state_json",
         [id, nextVersion, JSON.stringify(state)]
       );
+      if (state.phase === "FINISHED" && state.winnerId) {
+        const eligibility = await client.query(
+          "SELECT is_test,is_invalid FROM games WHERE id=$1 AND NOT EXISTS (SELECT 1 FROM bot_games WHERE game_id=$1)",
+          [id]
+        );
+        if (eligibility.rowCount === 1 && !eligibility.rows[0].is_test && !eligibility.rows[0].is_invalid) {
+          await client.query("DELETE FROM leaderboard_entries WHERE game_id=$1",[id]);
+          await client.query(
+            "INSERT INTO leaderboard_entries(game_id,player_id,display_name,score,rank) SELECT $1,gp.player_id,gp.display_name,gp_score.score,ROW_NUMBER() OVER (ORDER BY gp_score.score DESC) FROM (SELECT player_id,score FROM jsonb_to_recordset($2::jsonb) AS x(player_id text,score integer)) gp_score JOIN game_players gp ON gp.game_id=$1 AND gp.player_id=gp_score.player_id",
+            [id, JSON.stringify(state.players.map(p=>({player_id:p.playerId,score:p.score})))]
+          );
+        }
+      }
       await client.query("COMMIT");
       return nextVersion;
     } catch (error) {
@@ -306,6 +327,26 @@ export class GameStore {
       client.release();
     }
   }
+  async listGameEvents(gameId: string): Promise<readonly { sequence:number; eventType:string; playerId:string|null; payload:unknown; serverTimestamp:string }[]> {
+    const result = await this.pool.query("SELECT sequence_number,event_type,player_id,payload,server_timestamp FROM game_events WHERE game_id=$1 ORDER BY sequence_number",[gameId]);
+    return result.rows.map(row=>({sequence:Number(row.sequence_number),eventType:String(row.event_type),playerId:row.player_id===null?null:String(row.player_id),payload:row.payload,serverTimestamp:new Date(row.server_timestamp).toISOString()}));
+  }
+
+  async listGameSnapshots(gameId: string): Promise<readonly { sequence:number; state:GameState }[]> {
+    const result = await this.pool.query("SELECT sequence_number,state_json FROM game_snapshots WHERE game_id=$1 ORDER BY sequence_number",[gameId]);
+    return result.rows.map(row=>({sequence:Number(row.sequence_number),state:row.state_json as GameState}));
+  }
+
+  async getLeaderboard(limit=100): Promise<readonly { gameId:string; playerId:string; displayName:string; score:number; rank:number }[]> {
+    const safeLimit=Math.max(1,Math.min(1000,Math.floor(limit)));
+    const result=await this.pool.query("SELECT game_id,player_id,display_name,score,rank FROM leaderboard_entries ORDER BY score DESC,rank ASC LIMIT $1",[safeLimit]);
+    return result.rows.map(row=>({gameId:String(row.game_id),playerId:String(row.player_id),displayName:String(row.display_name),score:Number(row.score),rank:Number(row.rank)}));
+  }
+
+  async writeAdminAudit(actorId:string,action:string,gameId:string|null,payload:unknown={}):Promise<void> {
+    await this.pool.query("INSERT INTO admin_audit_logs(actor_id,action,game_id,payload) VALUES ($1,$2,$3,$4)",[actorId,action,gameId,JSON.stringify(payload)]);
+  }
+
 }
 
 export function createPool(databaseUrl: string): Pool {
