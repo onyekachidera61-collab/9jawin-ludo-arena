@@ -158,6 +158,14 @@ export class GameStore {
     }
   }
 
+  async resetStartingRoom(roomId: string): Promise<void> {
+    const result = await this.pool.query(
+      "UPDATE rooms SET status='WAITING', updated_at=now() WHERE id=$1 AND status='STARTING' AND game_id IS NULL",
+      [roomId]
+    );
+    if (result.rowCount !== 1) throw new Error("ROOM_RESET_FAILED");
+  }
+
   async createGame(id: string, state: GameState, ruleset: string): Promise<void> {
     await this.pool.query(
       "INSERT INTO games (id, phase, ruleset, state_json, version) VALUES ($1,$2,$3,$4,0)",
