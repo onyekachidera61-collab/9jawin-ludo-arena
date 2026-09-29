@@ -283,7 +283,7 @@ export function applyMove(
     };
   }
 
-  return advanceTurn({ ...state, players, pendingRoll: null }, rules);
+  return advanceTurn({ ...state, players, moveCount: (state.moveCount ?? 0) + 1, pendingRoll: null }, rules);
 }
 
 export function advanceTurn(state: GameState, rules: RuleSet, now = Date.now()): TransitionResult {
