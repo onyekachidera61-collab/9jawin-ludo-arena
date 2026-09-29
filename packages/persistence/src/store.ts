@@ -12,6 +12,25 @@ export type PersistedGame = {
 export class GameStore {
   constructor(private readonly pool: Pool) {}
 
+  async createGuestSession(sessionId: string, playerId: string, displayName: string, sessionTokenNonce: string, expiresAt: Date): Promise<void> {
+    await this.pool.query(
+      "INSERT INTO guest_sessions (session_id,player_id,display_name,session_token_nonce,expires_at) VALUES ($1,$2,$3,$4,$5)",
+      [sessionId, playerId, displayName, sessionTokenNonce, expiresAt]
+    );
+  }
+
+  async addGamePlayer(gameId: string, playerId: string, slotIndex: number, displayName: string): Promise<void> {
+    await this.pool.query(
+      "INSERT INTO game_players (game_id,player_id,slot_index,display_name) VALUES ($1,$2,$3,$4)",
+      [gameId, playerId, slotIndex, displayName]
+    );
+  }
+
+  async isGameMember(gameId: string, playerId: string): Promise<boolean> {
+    const result = await this.pool.query("SELECT 1 FROM game_players WHERE game_id=$1 AND player_id=$2", [gameId, playerId]);
+    return result.rowCount === 1;
+  }
+
   async createGame(id: string, state: GameState, ruleset: string): Promise<void> {
     await this.pool.query(
       "INSERT INTO games (id, phase, ruleset, state_json, version) VALUES ($1,$2,$3,$4,0)",
