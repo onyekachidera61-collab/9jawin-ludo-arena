@@ -48,7 +48,7 @@ wss.on("connection", (socket) => {
   let playerId: string | null = null;
   let gameId: string | null = null;
 
-  socket.on("message", (raw) => {
+  socket.on("message", async (raw) => {
     let parsed: ClientMessage;
     try {
       parsed = clientMessageSchema.parse(JSON.parse(raw.toString()));
@@ -94,7 +94,7 @@ wss.on("connection", (socket) => {
       if (!session) throw new Error("GAME_NOT_FOUND");
 
       if (parsed.type === "ROLL") {
-        const result = session.roll(playerId);
+        const result = await session.roll(playerId);
         broadcast(gameId, { type: "DICE_ROLLED", gameId, turnId: session.snapshot().state.turnId, playerId, roll: result.roll });
         broadcast(gameId, { type: "EVENTS", gameId, events: result.events });
         broadcast(gameId, { type: "STATE", gameId, state: session.snapshot().state });
@@ -102,7 +102,7 @@ wss.on("connection", (socket) => {
       }
 
       if (parsed.type === "MOVE") {
-        const events = session.move(playerId, parsed.tokenId as TokenId);
+        const events = await session.move(playerId, parsed.tokenId as TokenId);
         broadcast(gameId, { type: "EVENTS", gameId, events });
         broadcast(gameId, { type: "STATE", gameId, state: session.snapshot().state });
       }
