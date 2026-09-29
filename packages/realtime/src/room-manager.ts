@@ -11,6 +11,9 @@ export class RoomManager {
     const gameId = randomUUID();
     const session = GameSession.create(gameId, playerIds, this.store);
     await this.store.createGame(gameId, session.snapshot().state, "STANDARD");
+    for (let i = 0; i < playerIds.length; i += 1) {
+      await this.store.addGamePlayer(gameId, playerIds[i]!, i, playerIds[i]!);
+    }
     this.sessions.set(gameId, session);
     return session;
   }
