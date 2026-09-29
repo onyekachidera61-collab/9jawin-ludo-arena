@@ -1,0 +1,2 @@
+import {describe,expect,it} from "vitest";import {createLeagueDeck,validateLeagueDeck,LEAGUE_RULES,createGame} from "../src/index.js";
+describe("league",()=>{it("creates exactly six of each outcome",()=>{const deck=createLeagueDeck();validateLeagueDeck(deck);for(const v of [1,2,3,4,5,6]) expect(deck.filter(x=>x.value===v)).toHaveLength(6)});it("starts players with a 60s timebank",()=>{const s=createGame(["a","b"],LEAGUE_RULES);expect(s.players[0]!.timebankRemainingMs).toBe(60000)})});
