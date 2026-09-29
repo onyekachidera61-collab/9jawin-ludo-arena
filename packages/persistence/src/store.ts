@@ -26,11 +26,11 @@ export class GameStore {
     try {
       await client.query("BEGIN");
       await client.query(
-        "INSERT INTO matchmaking_queue(player_id, display_name, ruleset, player_count, status) VALUES ($1,$2,$3,$4,'WAITING') ON CONFLICT (player_id,ruleset,player_count) DO UPDATE SET display_name=EXCLUDED.display_name,status='WAITING',created_at=now()",
+        "INSERT INTO matchmaking_queue(player_id, display_name, ruleset, player_count, status, updated_at) VALUES ($1,$2,$3,$4,'WAITING',now()) ON CONFLICT (player_id,ruleset,player_count) DO UPDATE SET display_name=EXCLUDED.display_name,status='WAITING',updated_at=now()",
         [playerId, displayName, ruleset, playerCount]
       );
       const rows = await client.query<{ player_id: string }>(
-        "SELECT player_id FROM matchmaking_queue WHERE status='WAITING' AND ruleset=$1 AND player_count=$2 ORDER BY created_at FOR UPDATE SKIP LOCKED",
+        "SELECT player_id FROM matchmaking_queue WHERE status='WAITING' AND ruleset=$1 AND player_count=$2 AND updated_at > now() - interval '2 minutes' ORDER BY created_at FOR UPDATE SKIP LOCKED",
         [ruleset, playerCount]
       );
       if (rows.rows.length < playerCount) {
@@ -38,7 +38,7 @@ export class GameStore {
         return { matched: false, playerIds: rows.rows.map((r) => r.player_id) };
       }
       const selected = rows.rows.slice(0, playerCount).map((r) => r.player_id);
-      await client.query("UPDATE matchmaking_queue SET status='MATCHED' WHERE player_id = ANY($1::text[]) AND ruleset=$2 AND player_count=$3", [selected, ruleset, playerCount]);
+      await client.query("UPDATE matchmaking_queue SET status='MATCHED', updated_at=now() WHERE player_id = ANY($1::text[]) AND ruleset=$2 AND player_count=$3", [selected, ruleset, playerCount]);
       await client.query("COMMIT");
       return { matched: true, playerIds: selected };
     } catch (error) {
@@ -48,7 +48,7 @@ export class GameStore {
   }
 
   async cancelMatchmaking(playerId: string, ruleset: string, playerCount: 2 | 4): Promise<void> {
-    await this.pool.query("UPDATE matchmaking_queue SET status='CANCELLED' WHERE player_id=$1 AND ruleset=$2 AND player_count=$3 AND status='WAITING'", [playerId, ruleset, playerCount]);
+    await this.pool.query("UPDATE matchmaking_queue SET status='CANCELLED', updated_at=now() WHERE player_id=$1 AND ruleset=$2 AND player_count=$3 AND status='WAITING'", [playerId, ruleset, playerCount]);
   }
 
   async createGuestSession(sessionId: string, playerId: string, displayName: string, sessionTokenNonce: string, expiresAt: Date): Promise<void> {
