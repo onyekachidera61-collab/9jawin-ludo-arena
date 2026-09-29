@@ -13,7 +13,11 @@ export type GameEvent =
   | { type: "TOKEN_REACHED_HOME"; turnId: number; playerId: PlayerId; tokenId: TokenId }
   | { type: "EXTRA_ROLL_GRANTED"; turnId: number; playerId: PlayerId }
   | { type: "TURN_ADVANCED"; turnId: number; playerId: PlayerId }
-  | { type: "GAME_FINISHED"; turnId: number; playerId: PlayerId };
+  | { type: "GAME_FINISHED"; turnId: number; playerId: PlayerId }
+  | { type: "TURN_EXPIRED"; turnId: number; playerId: PlayerId }
+  | { type: "PLAYER_MISSED_TURN"; turnId: number; playerId: PlayerId; missedTurns: number }
+  | { type: "PLAYER_ELIMINATED"; turnId: number; playerId: PlayerId }
+  | { type: "TURN_ADVANCED"; turnId: number; playerId: PlayerId };
 
 export type RollState = {
   turnId: number;
