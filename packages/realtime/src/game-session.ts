@@ -4,6 +4,7 @@ import {
   assertGameInvariants,
   createGame,
   getLegalMoves,
+  resolveNoLegalMove,
   createTurnClock,
   expireTurn,
   recordRoll,
