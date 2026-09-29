@@ -447,6 +447,13 @@ wss.on("connection", (socket, request) => {
 
 async function bootstrap(): Promise<void> {
   await rooms.recoverActiveGames();
+  const recoveredBots = await store.listActiveBotGames();
+  for (const bot of recoveredBots) {
+    const session = rooms.get(bot.gameId);
+    if (!session) continue;
+    const botIds = new Set(session.snapshot().state.players.filter((player) => player.playerId.startsWith("bot-")).map((player) => player.playerId));
+    if (botIds.size) botGames.set(bot.gameId, { botIds, difficulty: bot.difficulty });
+  }
 
   setInterval(async () => {
     try {
