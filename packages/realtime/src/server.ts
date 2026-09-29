@@ -280,7 +280,10 @@ wss.on("connection", (socket, request) => {
         }
         const match = await store.enqueueMatchmaking(parsed.playerId, parsed.displayName, parsed.ruleset, parsed.playerCount);
         if (!match.matched) {
-          send(socket, { type: "MATCHMAKING_STATUS", status: "WAITING", playerCount: parsed.playerCount, ruleset: parsed.ruleset } as ServerMessage);
+          playerId = parsed.playerId;
+          gameId = null;
+          socketsByPlayer.set(playerId, socket);
+          send(socket, { type: "MATCHMAKING_STATUS", status: "WAITING", playerCount: parsed.playerCount, ruleset: parsed.ruleset });
           return;
         }
         const session = await rooms.create(match.playerIds);
