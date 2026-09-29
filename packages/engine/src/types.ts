@@ -37,6 +37,7 @@ export type GameState = {
   pendingRoll: PendingRoll | null;
   turnStartedAt: number | null;
   turnExpiresAt: number | null;
+  moveCount?: number;
 };
 
 export type RuleSet = {
