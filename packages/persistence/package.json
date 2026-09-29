@@ -2,6 +2,8 @@
   "name":"@portable-ludo/persistence",
   "version":"0.1.0",
   "private":true,
+  "main":"dist/index.js",
+  "types":"dist/index.d.ts",
   "type":"module",
   "scripts":{"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit"},
   "dependencies":{"@portable-ludo/engine":"file:../engine","pg":"^8.16.3"},
