@@ -30,7 +30,7 @@ export class GameSession {
     this.players = playerIds.map((playerId) => ({ playerId, connected: false }));
   }
 
-  static fromPersisted(gameId: string, state: GameState, version: number): GameSession {
+  static create(gameId: string, playerIds: readonly PlayerId[]): GameSession {\n    return new GameSession(gameId, playerIds);\n  }\n\n  static fromPersisted(gameId: string, state: GameState, version: number): GameSession {
     const session = new GameSession(gameId, state.players.map((p) => p.playerId));
     session.state = state;
     session.version = version;
