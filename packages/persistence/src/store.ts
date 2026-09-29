@@ -71,7 +71,7 @@ export class GameStore {
       const existing = await client.query("SELECT slot_index FROM room_players WHERE room_id=$1 AND player_id=$2", [row.id, playerId]);
       if (existing.rowCount === 1) {
         await client.query("COMMIT");
-        return { room: { id:row.id, code:row.code, ownerPlayerId:row.owner_player_id, ruleset:row.ruleset, playerCount:row.player_count, status:row.status, gameId:row.game_id }, slotIndex:Number(existing.rows[0].slot_index), playerCount:row.player_count };
+        return { room: { id:row.id, code:row.code, ownerPlayerId:row.owner_player_id, ruleset:row.ruleset, playerCount:row.player_count, status:row.status, gameId:row.game_id }, slotIndex:Number(existing.rows[0].slot_index), playerCount:row.player_count, shouldStart:false };
       }
 
       const count = await client.query("SELECT COUNT(*)::int AS count FROM room_players WHERE room_id=$1", [row.id]);
