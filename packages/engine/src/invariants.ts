@@ -15,6 +15,12 @@ export function assertGameInvariants(state: GameState, rules: RuleSet): void {
       if (token.homeMultiplierApplied && token.progress !== rules.homeProgress) throw new Error("INVALID_HOME_MULTIPLIER");
     }
   }
+  if (state.phase === "ACTIVE") {
+    if (state.turnStartedAt === null || state.turnExpiresAt === null) throw new Error("ACTIVE_WITHOUT_TURN_CLOCK");
+    if (state.turnExpiresAt < state.turnStartedAt) throw new Error("INVALID_TURN_CLOCK");
+  } else if (state.turnStartedAt !== null || state.turnExpiresAt !== null) {
+    throw new Error("INACTIVE_WITH_TURN_CLOCK");
+  }
   if (state.phase === "FINISHED" && state.winnerId === null) throw new Error("FINISHED_WITHOUT_WINNER");
   if (state.phase !== "FINISHED" && state.winnerId !== null) throw new Error("WINNER_BEFORE_FINISH");
   if (state.pendingRoll !== null) {
