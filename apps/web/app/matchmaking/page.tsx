@@ -14,11 +14,14 @@ export default function MatchmakingPage(){
 
   useEffect(()=>()=>{wsRef.current?.close()},[]);
   async function queue(){
-    const session=getSession(); setBusy(true); setStatus("Connecting…");
-    const ws=await openRealtime(); wsRef.current=ws;
-    ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==="MATCHMAKING_STATUS"){if(m.status==="MATCHED"&&m.gameId){setStatus("Match found.");router.push("/game/"+m.gameId)}else if(m.status==="CANCELLED"){setBusy(false);setStatus("Queue cancelled.")}else setStatus("Waiting for players…")}};
-    ws.onclose=()=>{if(busy)setStatus("Connection closed.")};
-    ws.send(JSON.stringify({type:"MATCHMAKING_JOIN",ruleset,playerCount,playerId:session.playerId,displayName:session.displayName,sessionToken:session.sessionToken}));
+    try{
+      const session=getSession(); setBusy(true); setStatus("Connecting…");
+      const ws=await openRealtime(); wsRef.current=ws;
+      ws.onmessage=e=>{try{const m=JSON.parse(String(e.data));if(m.type==="MATCHMAKING_STATUS"){if(m.status==="MATCHED"&&m.gameId){setBusy(false);setStatus("Match found.");router.push("/game/"+m.gameId)}else if(m.status==="CANCELLED"){setBusy(false);setStatus("Queue cancelled.")}else setStatus("Waiting for players…")}else if(m.type==="ERROR"){setBusy(false);setStatus(String(m.code||"MATCHMAKING_FAILED"))}}catch{setBusy(false);setStatus("INVALID_REALTIME_RESPONSE")}};
+      ws.onerror=()=>{setBusy(false);setStatus("REALTIME_CONNECTION_FAILED")};
+      ws.onclose=()=>{setBusy(false);setStatus(s=>s==="Waiting for players…"?"Connection closed.":s)};
+      ws.onopen=()=>ws.send(JSON.stringify({type:"MATCHMAKING_JOIN",ruleset,playerCount,playerId:session.playerId,displayName:session.displayName,sessionToken:session.sessionToken}));
+    }catch(error){setBusy(false);setStatus(error instanceof Error?error.message:"MATCHMAKING_FAILED")}
   }
   function cancel(){
     const session=getSession(); const ws=wsRef.current;
