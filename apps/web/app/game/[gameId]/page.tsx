@@ -6,7 +6,7 @@ import { connectGame, getSession } from "../../../lib/realtime";
 
 type Token = { tokenId:number; progress:number; movementPoints:number; homeMultiplierApplied:boolean };
 type Player = { playerId:string; colorIndex:number; tokens:Token[]; score:number; eliminated:boolean; consecutiveMissedTurns:number; timebankRemainingMs?:number };
-type State = { phase:string; players:Player[]; currentPlayerIndex:number; turnId:number; consecutiveSixes:number; winnerId:string|null; pendingRoll:{value:number;playerId:string;turnId:number}|null; turnStartedAt:number|null; turnExpiresAt:number|null };
+type State = { phase:string; players:Player[]; currentPlayerIndex:number; turnId:number; consecutiveSixes:number; winnerId:string|null; pendingRoll:{value:number;playerId:string;turnId:number}|null; turnStartedAt:number|null; turnExpiresAt:number|null; moveCount?:number; leagueDeckIndex?:number };
 
 const TRACK = 52;
 const PATH = Array.from({length:15},(_,r)=>Array.from({length:15},(_,col)=>({r,col}))).flat().filter(({r,col}) => !((r===0||r===14)&&(col===0||col===14)));
@@ -45,7 +45,7 @@ export default function GamePage(){
     <div className="mx-auto max-w-6xl">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div><p className="text-sm font-semibold uppercase tracking-widest text-amber-300">Portable Ludo</p><h1 className="text-2xl font-black sm:text-3xl">Game {gameId}</h1></div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right"><div className="text-xs text-slate-400">Turn timer</div><div className="text-2xl font-black">{state.phase==="ACTIVE"?`${seconds}s`:"—"}</div></div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right"><div className="text-xs text-slate-400">Turn timer</div><div className="text-2xl font-black">{state.phase==="ACTIVE"?`${seconds}s`:"—"}</div><div className="text-[10px] text-slate-500">Moves {state.moveCount??0}{state.leagueDeckIndex!==undefined?` · League ${state.leagueDeckIndex}/36`:""}</div></div>
       </header>
 
       <section className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
