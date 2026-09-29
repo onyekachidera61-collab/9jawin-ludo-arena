@@ -15,10 +15,28 @@ export class RoomManager {
     return session;
   }
   async createLobby(ownerPlayerId: string, displayName: string, playerCount: 2 | 4 = 2): Promise<{ id: string; code: string }> {
-    const id = randomUUID();
-    const code = `LUDO-${randomUUID().replaceAll("-", "").slice(0, 4).toUpperCase()}`;
-    await this.store.createRoomWithOwner({ id, code, ownerPlayerId, ruleset: "STANDARD", playerCount, expiresAt: new Date(Date.now() + 30 * 60_000), displayName });
-    return { id, code };
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const id = randomUUID();
+      const code = `LUDO-${randomUUID().replaceAll("-", "").slice(0, 4).toUpperCase()}`;
+      try {
+        await this.store.createRoomWithOwner({
+          id,
+          code,
+          ownerPlayerId,
+          ruleset: "STANDARD",
+          playerCount,
+          expiresAt: new Date(Date.now() + 30 * 60_000),
+          displayName
+        });
+        return { id, code };
+      } catch (error) {
+        const postgresCode = typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code: unknown }).code)
+          : "";
+        if (postgresCode !== "23505" || attempt === 4) throw error;
+      }
+    }
+    throw new Error("ROOM_CREATION_FAILED");
   }
 
   async getLobby(roomIdOrCode: string) {
