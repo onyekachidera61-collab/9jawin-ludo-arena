@@ -250,8 +250,9 @@ wss.on("connection", (socket) => {
   });
 
   socket.on("close", () => {
-    if (playerId && socketsByPlayer.get(playerId) === socket) socketsByPlayer.delete(playerId);
-    if (playerId && gameId) rooms.get(gameId)?.disconnect(playerId);
+    const isAuthoritativeSocket = playerId ? socketsByPlayer.get(playerId) === socket : false;
+    if (playerId && isAuthoritativeSocket) socketsByPlayer.delete(playerId);
+    if (playerId && gameId && isAuthoritativeSocket) rooms.get(gameId)?.disconnect(playerId);
     for (const [roomId, members] of lobbySockets) {
       for (const [lobbyPlayerId, lobbySocket] of members) {
         if (lobbySocket === socket) members.delete(lobbyPlayerId);
