@@ -54,12 +54,16 @@ export class RoomManager {
     const waiting = createGame(players.map((p) => p.playerId), STANDARD_RULES);
     const started = startGame(waiting);
     await this.store.finalizeRoomGame(joined.room.id, gameId, started.state, "STANDARD", players);
+    const activeRoom = await this.store.getRoom(joined.room.id);
+    if (!activeRoom || activeRoom.status !== "ACTIVE" || activeRoom.gameId !== gameId) {
+      throw new Error("ROOM_FINALIZATION_MISMATCH");
+    }
     const session = GameSession.fromPersisted(gameId, started.state, 0, this.store);
     this.sessions.set(gameId, session);
 
     return {
       ...joined,
-      room: { ...joined.room, status: "ACTIVE", gameId },
+      room: activeRoom,
       gameId,
       state: started.state,
       events: started.events,
