@@ -1,4 +1,5 @@
 import type { GameState, PlayerId, RuleSet } from "./types.js";
+import type { GameEvent } from "./game.js";
 
 export type TurnClock = {
   turnId: number;
@@ -7,9 +8,17 @@ export type TurnClock = {
   turnExpiresAt: number;
 };
 
-export function createTurnClock(state: GameState, now: number, rules: RuleSet): TurnClock {
+export function createTurnClock(state: GameState, now = Date.now(), rules: RuleSet): TurnClock {
   const player = state.players[state.currentPlayerIndex];
   if (!player) throw new Error("CURRENT_PLAYER_MISSING");
+  if (state.turnStartedAt !== null && state.turnExpiresAt !== null) {
+    return {
+      turnId: state.turnId,
+      playerId: player.playerId,
+      turnStartedAt: state.turnStartedAt,
+      turnExpiresAt: state.turnExpiresAt
+    };
+  }
   return {
     turnId: state.turnId,
     playerId: player.playerId,
@@ -24,17 +33,14 @@ export function isTurnExpired(clock: TurnClock, now: number): boolean {
 
 export type TimeoutTransition = {
   state: GameState;
-  events: readonly Array<
-    | { type: "TURN_EXPIRED"; turnId: number; playerId: PlayerId }
-    | { type: "PLAYER_MISSED_TURN"; turnId: number; playerId: PlayerId; missedTurns: number }
-    | { type: "PLAYER_ELIMINATED"; turnId: number; playerId: PlayerId }
-    | { type: "TURN_ADVANCED"; turnId: number; playerId: PlayerId }
-  >;
+  events: readonly GameEvent[];
 };
 
 export function expireTurn(state: GameState, now: number, clock: TurnClock, rules: RuleSet): TimeoutTransition {
   if (state.phase !== "ACTIVE") throw new Error("GAME_NOT_ACTIVE");
   if (clock.turnId !== state.turnId) throw new Error("STALE_TURN");
+  if (state.turnStartedAt === null || state.turnExpiresAt === null) throw new Error("TURN_CLOCK_MISSING");
+  if (clock.turnStartedAt !== state.turnStartedAt || clock.turnExpiresAt !== state.turnExpiresAt) throw new Error("STALE_TURN_CLOCK");
   if (!isTurnExpired(clock, now)) throw new Error("TURN_NOT_EXPIRED");
 
   const playerIndex = state.players.findIndex((player) => player.playerId === clock.playerId);
@@ -82,7 +88,9 @@ export function expireTurn(state: GameState, now: number, clock: TurnClock, rule
           players,
           phase: "FINISHED",
           winnerId: winner.playerId,
-          pendingRoll: null
+          pendingRoll: null,
+          turnStartedAt: null,
+          turnExpiresAt: null
         },
         events
       };
@@ -109,7 +117,9 @@ export function expireTurn(state: GameState, now: number, clock: TurnClock, rule
       currentPlayerIndex: nextIndex,
       turnId: nextTurnId,
       consecutiveSixes: 0,
-      pendingRoll: null
+      pendingRoll: null,
+      turnStartedAt: now,
+      turnExpiresAt: now + rules.turnDurationMs
     },
     events
   };
