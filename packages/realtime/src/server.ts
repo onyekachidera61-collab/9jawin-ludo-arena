@@ -66,7 +66,7 @@ wss.on("connection", (socket) => {
       if (parsed.type === "JOIN") {
         const tokenPlayerId = verifySessionToken(parsed.sessionToken, sessionSecret);
         if (tokenPlayerId !== parsed.playerId) throw new Error("SESSION_PLAYER_MISMATCH");
-        const session = rooms.get(parsed.roomId);
+        const session = rooms.get(parsed.roomId) ?? await rooms.load(parsed.roomId);
         if (!session) throw new Error("GAME_NOT_FOUND");
         session.join(parsed.playerId);
         playerId = parsed.playerId;
@@ -79,7 +79,7 @@ wss.on("connection", (socket) => {
       if (parsed.type === "RECONNECT") {
         const tokenPlayerId = verifySessionToken(parsed.sessionToken, sessionSecret);
         if (tokenPlayerId !== playerId && playerId !== null) throw new Error("SESSION_PLAYER_MISMATCH");
-        const session = rooms.get(parsed.gameId);
+        const session = rooms.get(parsed.gameId) ?? await rooms.load(parsed.gameId);
         if (!session) throw new Error("GAME_NOT_FOUND");
         session.join(tokenPlayerId);
         playerId = tokenPlayerId;
