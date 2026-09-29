@@ -9,7 +9,7 @@ export class RoomManager {
 
   async create(playerIds: readonly string[]): Promise<GameSession> {
     const gameId = randomUUID();
-    const session = new GameSession(gameId, playerIds);
+    const session = GameSession.create(gameId, playerIds);
     await this.store.createGame(gameId, session.snapshot().state, "STANDARD");
     this.sessions.set(gameId, session);
     return session;
