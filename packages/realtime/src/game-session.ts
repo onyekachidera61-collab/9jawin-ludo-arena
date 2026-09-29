@@ -1,3 +1,4 @@
+import type { GameStore } from "@portable-ludo/persistence";
 import {
   applyMove,
   assertGameInvariants,
@@ -24,7 +25,7 @@ export class GameSession {
   private readonly rollStates = new Map<PlayerId, RollState>();
   private version = 0;
 
-  private constructor(gameId: string, playerIds: readonly PlayerId[]) {
+  private constructor(gameId: string, playerIds: readonly PlayerId[], private readonly store?: GameStore) {
     this.gameId = gameId;
     this.state = createGame(playerIds, STANDARD_RULES);
     this.players = playerIds.map((playerId) => ({ playerId, connected: false }));
@@ -34,8 +35,8 @@ export class GameSession {
     return new GameSession(gameId, playerIds);
   }
 
-  static fromPersisted(gameId: string, state: GameState, version: number): GameSession {
-    const session = new GameSession(gameId, state.players.map((p) => p.playerId));
+  static fromPersisted(gameId: string, state: GameState, version: number, store?: GameStore): GameSession {
+    const session = new GameSession(gameId, state.players.map((p) => p.playerId), store);
     session.state = state;
     session.version = version;
     return session;
