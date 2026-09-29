@@ -25,6 +25,16 @@ export class GameStore {
     );
   }
 
+  async getGuestSession(playerId: string, nonce: string): Promise<{ playerId: string; displayName: string; expiresAt: Date } | null> {
+    const result = await this.pool.query(
+      "SELECT player_id,display_name,expires_at FROM guest_sessions WHERE player_id=$1 AND session_token_nonce=$2 AND expires_at > now()",
+      [playerId, nonce]
+    );
+    const row = result.rows[0] as { player_id:string; display_name:string; expires_at:Date } | undefined;
+    if (!row) return null;
+    return { playerId: String(row.player_id), displayName: String(row.display_name), expiresAt: new Date(row.expires_at) };
+  }
+
   async addGamePlayer(gameId: string, playerId: string, slotIndex: number, displayName: string): Promise<void> {
     await this.pool.query(
       "INSERT INTO game_players (game_id,player_id,slot_index,display_name) VALUES ($1,$2,$3,$4)",
