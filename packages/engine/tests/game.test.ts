@@ -48,6 +48,7 @@ describe("game transitions", () => {
     const moved = applyMove(rolled.state, rolled.rollState, 0, STANDARD_RULES);
     expect(moved.state.players[0]?.tokens[0]?.progress).toBe(0);
     expect(moved.events.some((event) => event.type === "EXTRA_ROLL_GRANTED")).toBe(true);
+    expect(moved.state.moveCount).toBe(1);
   });
 
   it("captures an opponent on a non-safe shared square", () => {
