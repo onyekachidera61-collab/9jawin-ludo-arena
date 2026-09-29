@@ -118,6 +118,27 @@ export function getLegalMoves(state: GameState, playerId: PlayerId, roll: number
   return legal;
 }
 
+export function resolveNoLegalMove(
+  state: GameState,
+  rules: RuleSet
+): TransitionResult {
+  const pending = state.pendingRoll;
+  if (!pending) throw new Error("ROLL_NOT_PENDING");
+
+  if (pending.consecutiveSixes < 3 && rules.extraRollOnSix && pending.value === 6) {
+    return {
+      state: { ...state, pendingRoll: null },
+      events: [{
+        type: "EXTRA_ROLL_GRANTED",
+        turnId: state.turnId,
+        playerId: pending.playerId
+      }]
+    };
+  }
+
+  return advanceTurn({ ...state, pendingRoll: null }, rules);
+}
+
 export function applyMove(
   state: GameState,
   rollState: RollState,
