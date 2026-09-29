@@ -18,6 +18,8 @@ export type RoomRecord = {
 export class GameStore {
   constructor(private readonly pool: Pool) {}
 
+  async ping(): Promise<void> { await this.pool.query("SELECT 1"); }
+
   async createGuestSession(sessionId: string, playerId: string, displayName: string, sessionTokenNonce: string, expiresAt: Date): Promise<void> {
     await this.pool.query(
       "INSERT INTO guest_sessions (session_id,player_id,display_name,session_token_nonce,expires_at) VALUES ($1,$2,$3,$4,$5)",
