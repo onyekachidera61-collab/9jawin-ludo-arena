@@ -205,13 +205,15 @@ export class GameStore {
     } | undefined;
     if (!row) return null;
     const state = row.state_json;
-    if (
-      state.phase === "ACTIVE" &&
-      (state.turnStartedAt === undefined || state.turnExpiresAt === undefined)
-    ) {
-      const startedAt = new Date(row.updated_at).getTime();
-      state.turnStartedAt = startedAt;
-      state.turnExpiresAt = startedAt + 15_000;
+    if (state.phase === "ACTIVE") {
+      if (state.turnStartedAt === undefined || state.turnExpiresAt === undefined) {
+        const startedAt = new Date(row.updated_at).getTime();
+        state.turnStartedAt = startedAt;
+        state.turnExpiresAt = startedAt + 15_000;
+      }
+    } else {
+      state.turnStartedAt = null;
+      state.turnExpiresAt = null;
     }
     return { id: row.id, phase: row.phase, ruleset: row.ruleset, state, version: Number(row.version) };
   }
