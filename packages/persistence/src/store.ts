@@ -20,6 +20,36 @@ export class GameStore {
 
   async ping(): Promise<void> { await this.pool.query("SELECT 1"); }
 
+  async enqueueMatchmaking(playerId: string, displayName: string, ruleset: string, playerCount: 2 | 4): Promise<{ matched: boolean; playerIds: string[] }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "INSERT INTO matchmaking_queue(player_id, display_name, ruleset, player_count, status) VALUES ($1,$2,$3,$4,'WAITING') ON CONFLICT (player_id,ruleset,player_count) DO UPDATE SET display_name=EXCLUDED.display_name,status='WAITING',created_at=now()",
+        [playerId, displayName, ruleset, playerCount]
+      );
+      const rows = await client.query<{ player_id: string }>(
+        "SELECT player_id FROM matchmaking_queue WHERE status='WAITING' AND ruleset=$1 AND player_count=$2 ORDER BY created_at FOR UPDATE SKIP LOCKED",
+        [ruleset, playerCount]
+      );
+      if (rows.rows.length < playerCount) {
+        await client.query("COMMIT");
+        return { matched: false, playerIds: rows.rows.map((r) => r.player_id) };
+      }
+      const selected = rows.rows.slice(0, playerCount).map((r) => r.player_id);
+      await client.query("UPDATE matchmaking_queue SET status='MATCHED' WHERE player_id = ANY($1::text[]) AND ruleset=$2 AND player_count=$3", [selected, ruleset, playerCount]);
+      await client.query("COMMIT");
+      return { matched: true, playerIds: selected };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally { client.release(); }
+  }
+
+  async cancelMatchmaking(playerId: string, ruleset: string, playerCount: 2 | 4): Promise<void> {
+    await this.pool.query("UPDATE matchmaking_queue SET status='CANCELLED' WHERE player_id=$1 AND ruleset=$2 AND player_count=$3 AND status='WAITING'", [playerId, ruleset, playerCount]);
+  }
+
   async createGuestSession(sessionId: string, playerId: string, displayName: string, sessionTokenNonce: string, expiresAt: Date): Promise<void> {
     await this.pool.query(
       "INSERT INTO guest_sessions (session_id,player_id,display_name,session_token_nonce,expires_at) VALUES ($1,$2,$3,$4,$5)",
