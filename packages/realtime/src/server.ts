@@ -64,6 +64,23 @@ wss.on("connection", (socket) => {
         return;
       }
 
+      if (parsed.type === "ROOM_JOIN") {
+        const tokenPlayerId = verifySessionToken(parsed.sessionToken, sessionSecret);
+        if (tokenPlayerId !== parsed.playerId) throw new Error("SESSION_PLAYER_MISMATCH");
+        const result = await rooms.joinLobby(parsed.roomId, parsed.playerId, parsed.displayName);
+        const lobby = await rooms.getLobby(result.room.id);
+        send(socket, { type: "ROOM_JOINED", room: lobby, players: lobby?.players ?? [], gameId: result.room.gameId });
+        if (result.gameId) {
+          const session = rooms.get(result.gameId);
+          if (!session) throw new Error("GAME_NOT_FOUND");
+          playerId = parsed.playerId;
+          gameId = result.gameId;
+          socketsByPlayer.set(playerId, socket);
+          send(socket, { type: "STATE", gameId, state: session.snapshot().state });
+        }
+        return;
+      }
+
       if (parsed.type === "JOIN") {
         const tokenPlayerId = verifySessionToken(parsed.sessionToken, sessionSecret);
         if (tokenPlayerId !== parsed.playerId) throw new Error("SESSION_PLAYER_MISMATCH");
