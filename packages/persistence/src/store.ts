@@ -31,6 +31,14 @@ export class GameStore {
     return result.rowCount === 1;
   }
 
+  async createRoom(room: { id: string; code: string; ownerPlayerId: string; ruleset: string; playerCount: number; expiresAt: Date }): Promise<void> {
+    await this.pool.query("INSERT INTO rooms (id,code,owner_player_id,ruleset,player_count,status,expires_at) VALUES ($1,$2,$3,$4,$5,'WAITING',$6)", [room.id, room.code, room.ownerPlayerId, room.ruleset, room.playerCount, room.expiresAt]);
+  }
+
+  async addRoomPlayer(roomId: string, playerId: string, slotIndex: number, displayName: string): Promise<void> {
+    await this.pool.query("INSERT INTO room_players (room_id,player_id,slot_index,display_name) VALUES ($1,$2,$3,$4)", [roomId, playerId, slotIndex, displayName]);
+  }
+
   async createGame(id: string, state: GameState, ruleset: string): Promise<void> {
     await this.pool.query(
       "INSERT INTO games (id, phase, ruleset, state_json, version) VALUES ($1,$2,$3,$4,0)",
