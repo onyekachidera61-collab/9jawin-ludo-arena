@@ -8,6 +8,7 @@ export function assertGameInvariants(state: GameState, rules: RuleSet): void {
   if (state.currentPlayerIndex < 0 || state.currentPlayerIndex >= state.players.length) throw new Error("INVALID_CURRENT_PLAYER");
   for (const player of state.players) {
     if (player.tokens.length !== rules.tokenCount) throw new Error("INVALID_TOKEN_COUNT");
+    if (player.timebankRemainingMs < 0 || player.timebankRemainingMs > rules.timebankMs) throw new Error("INVALID_TIMEBANK");
     if (player.score !== playerScore(player)) throw new Error("SCORE_INVARIANT");
     for (const token of player.tokens) {
       if (token.progress < rules.yardProgress || token.progress > rules.homeProgress) throw new Error("INVALID_TOKEN_PROGRESS");
