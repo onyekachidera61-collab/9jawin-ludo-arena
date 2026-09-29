@@ -27,6 +27,7 @@ if (!databaseUrl) throw new Error("DATABASE_URL is required");
 const store = new GameStore(createPool(databaseUrl));
 const rooms = new RoomManager(store);
 const socketsByPlayer = new Map<string, WebSocket>();
+const lobbySockets = new Map<string, Map<string, WebSocket>>();
 
 function send(socket: WebSocket, message: ServerMessage): void {
   if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message));
@@ -70,14 +71,35 @@ wss.on("connection", (socket) => {
         const result = await rooms.joinLobby(parsed.roomId, parsed.playerId, parsed.displayName);
         const lobby = await rooms.getLobby(result.room.id);
         send(socket, { type: "ROOM_JOINED", room: lobby, players: lobby?.players ?? [], gameId: result.room.gameId });
-        if (result.gameId) {
-          const session = rooms.get(result.gameId);
-          if (!session) throw new Error("GAME_NOT_FOUND");
-          playerId = parsed.playerId;
-          gameId = result.gameId;
-          socketsByPlayer.set(playerId, socket);
-          send(socket, { type: "STATE", gameId, state: session.snapshot().state });
+        if (!result.gameId) {
+          let members = lobbySockets.get(result.room.id);
+          if (!members) {
+            members = new Map<string, WebSocket>();
+            lobbySockets.set(result.room.id, members);
+          }
+          members.set(parsed.playerId, socket);
+          return;
         }
+
+        const session = rooms.get(result.gameId);
+        if (!session) throw new Error("GAME_NOT_FOUND");
+
+        const members = lobbySockets.get(result.room.id) ?? new Map<string, WebSocket>();
+        members.set(parsed.playerId, socket);
+        for (const lobbyPlayer of result.players ?? []) {
+          const waitingSocket = members.get(lobbyPlayer.playerId);
+          if (!waitingSocket) continue;
+          send(waitingSocket, { type: "ROOM_JOINED", room: lobby, players: result.players ?? [], gameId: result.gameId });
+          send(waitingSocket, { type: "STATE", gameId: result.gameId, state: session.snapshot().state });
+          socketsByPlayer.set(lobbyPlayer.playerId, waitingSocket);
+        }
+        lobbySockets.delete(result.room.id);
+
+        playerId = parsed.playerId;
+        gameId = result.gameId;
+        socketsByPlayer.set(playerId, socket);
+        session.join(playerId);
+        send(socket, { type: "STATE", gameId, state: session.snapshot().state });
         return;
       }
 
@@ -134,6 +156,12 @@ wss.on("connection", (socket) => {
   socket.on("close", () => {
     if (playerId && socketsByPlayer.get(playerId) === socket) socketsByPlayer.delete(playerId);
     if (playerId && gameId) rooms.get(gameId)?.disconnect(playerId);
+    for (const [roomId, members] of lobbySockets) {
+      for (const [lobbyPlayerId, lobbySocket] of members) {
+        if (lobbySocket === socket) members.delete(lobbyPlayerId);
+      }
+      if (members.size === 0) lobbySockets.delete(roomId);
+    }
   });
 });
 
