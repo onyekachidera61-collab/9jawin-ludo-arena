@@ -262,6 +262,43 @@ wss.on("connection", (socket) => {
   });
 });
 
-httpServer.listen(port, () => {
-  console.log(JSON.stringify({ service: "portable-ludo-realtime", port }));
+async function bootstrap(): Promise<void> {
+  await rooms.recoverActiveGames();
+
+  setInterval(async () => {
+    try {
+      const expired = await rooms.expireTurns(Date.now());
+      for (const transition of expired) {
+        broadcast(transition.gameId, {
+          type: "EVENTS",
+          gameId: transition.gameId,
+          events: transition.events
+        });
+        const session = rooms.get(transition.gameId);
+        if (session) {
+          broadcast(transition.gameId, {
+            type: "STATE",
+            gameId: transition.gameId,
+            state: session.snapshot().state
+          });
+        }
+      }
+    } catch (error) {
+      console.error(JSON.stringify({
+        service: "portable-ludo-realtime",
+        timerError: error instanceof Error ? error.message : "UNKNOWN_TIMER_ERROR"
+      }));
+    }
+  }, 250);
+
+  httpServer.listen(port, () => {
+    console.log(JSON.stringify({ service: "portable-ludo-realtime", port }));
+  });
+}
+
+bootstrap().catch((error) => {
+  console.error(JSON.stringify({
+    service: "portable-ludo-realtime",
+    startupError: error instanceof Error ? error.message : "UNKNOWN_STARTUP_ERROR"
+  }));
 });
