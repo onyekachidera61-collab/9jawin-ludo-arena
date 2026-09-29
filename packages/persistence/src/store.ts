@@ -62,3 +62,63 @@ export class GameStore {
 export function createPool(databaseUrl: string): Pool {
   return new Pool({ connectionString: databaseUrl, max: 10, idleTimeoutMillis: 30_000 });
 }
+
+export type GuestSession = {
+  sessionId: string;
+  playerId: string;
+  displayName: string;
+  sessionTokenNonce: string;
+  expiresAt: Date;
+};
+
+export async function createGuestSession(
+  pool: Pool,
+  sessionId: string,
+  playerId: string,
+  displayName: string,
+  sessionTokenNonce: string,
+  expiresAt: Date
+): Promise<void> {
+  await pool.query(
+    "INSERT INTO guest_sessions (session_id,player_id,display_name,session_token_nonce,expires_at) VALUES ($1,$2,$3,$4,$5)",
+    [sessionId, playerId, displayName, sessionTokenNonce, expiresAt]
+  );
+}
+
+export async function getGuestSession(pool: Pool, playerId: string): Promise<GuestSession | null> {
+  const result = await pool.query(
+    "SELECT session_id,player_id,display_name,session_token_nonce,expires_at FROM guest_sessions WHERE player_id=$1 AND expires_at > now()",
+    [playerId]
+  );
+  const row = result.rows[0] as {
+    session_id:string; player_id:string; display_name:string; session_token_nonce:string; expires_at:Date
+  } | undefined;
+  return row ? {
+    sessionId: row.session_id,
+    playerId: row.player_id,
+    displayName: row.display_name,
+    sessionTokenNonce: row.session_token_nonce,
+    expiresAt: row.expires_at
+  } : null;
+}
+
+export async function addGamePlayer(
+  pool: Pool,
+  gameId: string,
+  playerId: string,
+  slotIndex: number,
+  displayName: string
+): Promise<void> {
+  await pool.query(
+    "INSERT INTO game_players (game_id,player_id,slot_index,display_name) VALUES ($1,$2,$3,$4)",
+    [gameId, playerId, slotIndex, displayName]
+  );
+}
+
+export async function isGameMember(pool: Pool, gameId: string, playerId: string): Promise<boolean> {
+  const result = await pool.query(
+    "SELECT 1 FROM game_players WHERE game_id=$1 AND player_id=$2",
+    [gameId, playerId]
+  );
+  return result.rowCount === 1;
+}
