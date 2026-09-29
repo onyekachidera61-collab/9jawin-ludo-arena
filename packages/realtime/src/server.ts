@@ -126,9 +126,9 @@ wss.on("connection", (socket) => {
         if (!guest) throw new Error("INVALID_SESSION");
         if (guest.displayName !== parsed.displayName) throw new Error("SESSION_DISPLAY_NAME_MISMATCH");
         const result = await rooms.joinLobby(parsed.roomId, parsed.playerId, parsed.displayName);
-        const lobby = await rooms.getLobby(result.room.id);
-        send(socket, { type: "ROOM_JOINED", room: lobby, players: lobby?.players ?? [], gameId: result.room.gameId });
         if (!result.gameId) {
+          const lobby = await rooms.getLobby(result.room.id);
+          send(socket, { type: "ROOM_JOINED", room: lobby, players: lobby?.players ?? [], gameId: null });
           let members = lobbySockets.get(result.room.id);
           if (!members) {
             members = new Map<string, WebSocket>();
@@ -141,13 +141,23 @@ wss.on("connection", (socket) => {
         const session = rooms.get(result.gameId);
         if (!session) throw new Error("GAME_NOT_FOUND");
 
+        const activeLobby = await rooms.getLobby(result.room.id);
+        if (!activeLobby || activeLobby.gameId !== result.gameId || activeLobby.status !== "ACTIVE") {
+          throw new Error("ACTIVE_LOBBY_NOT_CONFIRMED");
+        }
+
         const members = lobbySockets.get(result.room.id) ?? new Map<string, WebSocket>();
         members.set(parsed.playerId, socket);
         for (const lobbyPlayer of result.players ?? []) {
           const waitingSocket = members.get(lobbyPlayer.playerId);
           if (!waitingSocket) continue;
           session.join(lobbyPlayer.playerId);
-          send(waitingSocket, { type: "ROOM_JOINED", room: lobby, players: result.players ?? [], gameId: result.gameId });
+          send(waitingSocket, {
+            type: "ROOM_JOINED",
+            room: activeLobby,
+            players: result.players ?? [],
+            gameId: result.gameId
+          });
           send(waitingSocket, { type: "STATE", gameId: result.gameId, state: session.snapshot().state });
           socketsByPlayer.set(lobbyPlayer.playerId, waitingSocket);
         }
@@ -157,6 +167,7 @@ wss.on("connection", (socket) => {
         gameId = result.gameId;
         socketsByPlayer.set(playerId, socket);
         session.join(playerId);
+        send(socket, { type: "ROOM_JOINED", room: activeLobby, players: result.players ?? [], gameId: result.gameId });
         send(socket, { type: "STATE", gameId, state: session.snapshot().state });
         return;
       }
