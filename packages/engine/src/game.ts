@@ -4,6 +4,8 @@ import { absoluteTrackPosition, isSafeSquare } from "./board.js";
 import { canLandAt } from "./occupancy.js";
 import type { GameState, PlayerId, RuleSet, TokenId, PendingRoll } from "./types.js";
 
+const STANDARD_TURN_DURATION_MS = 15_000;
+
 export type GameEvent =
   | { type: "GAME_STARTED"; turnId: number; playerId: PlayerId }
   | { type: "DICE_ROLLED"; turnId: number; playerId: PlayerId; roll: number }
@@ -53,17 +55,25 @@ export function createGame(playerIds: readonly PlayerId[], rules: RuleSet): Game
     turnId: 0,
     consecutiveSixes: 0,
     winnerId: null,
-    pendingRoll: null
+    pendingRoll: null,
+    turnStartedAt: null,
+    turnExpiresAt: null
   };
 }
 
-export function startGame(state: GameState): TransitionResult {
+export function startGame(state: GameState, now = Date.now()): TransitionResult {
   if (state.phase !== "WAITING") throw new Error("GAME_NOT_WAITING");
   const player = state.players[state.currentPlayerIndex];
   if (!player) throw new Error("CURRENT_PLAYER_MISSING");
 
   return {
-    state: { ...state, phase: "ACTIVE", turnId: 1 },
+    state: {
+      ...state,
+      phase: "ACTIVE",
+      turnId: 1,
+      turnStartedAt: now,
+      turnExpiresAt: now + STANDARD_TURN_DURATION_MS
+    },
     events: [{ type: "GAME_STARTED", turnId: 1, playerId: player.playerId }]
   };
 }
@@ -214,7 +224,15 @@ export function applyMove(
   const finished = updatedPlayer.tokens.every((candidate) => candidate.progress === rules.homeProgress);
   if (finished) {
     return {
-      state: { ...state, players, phase: "FINISHED", winnerId: player.playerId, pendingRoll: null },
+      state: {
+        ...state,
+        players,
+        phase: "FINISHED",
+        winnerId: player.playerId,
+        pendingRoll: null,
+        turnStartedAt: null,
+        turnExpiresAt: null
+      },
       events: [...events, {
         type: "GAME_FINISHED",
         turnId: state.turnId,
@@ -241,7 +259,7 @@ export function applyMove(
   return advanceTurn({ ...state, players, pendingRoll: null }, rules);
 }
 
-export function advanceTurn(state: GameState, _rules: RuleSet): TransitionResult {
+export function advanceTurn(state: GameState, rules: RuleSet, now = Date.now()): TransitionResult {
   const nextIndex = findNextEligiblePlayer(state, state.currentPlayerIndex);
   if (nextIndex < 0) {
     return { state, events: [] };
@@ -255,7 +273,9 @@ export function advanceTurn(state: GameState, _rules: RuleSet): TransitionResult
       ...state,
       currentPlayerIndex: nextIndex,
       turnId,
-      consecutiveSixes: 0
+      consecutiveSixes: 0,
+      turnStartedAt: now,
+      turnExpiresAt: now + rules.turnDurationMs
     },
     events: [{
       type: "TURN_ADVANCED",
