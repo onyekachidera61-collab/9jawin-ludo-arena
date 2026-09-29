@@ -56,7 +56,7 @@ export class GameStore {
     return result.rows.map((row) => ({ playerId:String(row.player_id), slotIndex:Number(row.slot_index), displayName:String(row.display_name), ready:Boolean(row.ready) }));
   }
 
-  async joinRoom(roomIdOrCode: string, playerId: string, displayName: string): Promise<{ room: RoomRecord; slotIndex: number; playerCount: number }> {
+  async joinRoom(roomIdOrCode: string, playerId: string, displayName: string): Promise<{ room: RoomRecord; slotIndex: number; playerCount: number; shouldStart: boolean }> {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -86,8 +86,12 @@ export class GameStore {
         "INSERT INTO room_players (room_id,player_id,slot_index,display_name) VALUES ($1,$2,$3,$4)",
         [row.id, playerId, slotIndex, displayName]
       );
+      const shouldStart = occupied + 1 === row.player_count;
+      if (shouldStart) {
+        await client.query("UPDATE rooms SET status='STARTING', updated_at=now() WHERE id=$1 AND status='WAITING'", [row.id]);
+      }
       await client.query("COMMIT");
-      return { room: { id:row.id, code:row.code, ownerPlayerId:row.owner_player_id, ruleset:row.ruleset, playerCount:row.player_count, status:row.status, gameId:row.game_id }, slotIndex, playerCount:row.player_count };
+      return { room: { id:row.id, code:row.code, ownerPlayerId:row.owner_player_id, ruleset:row.ruleset, playerCount:row.player_count, status:shouldStart ? "STARTING" : row.status, gameId:row.game_id }, slotIndex, playerCount:row.player_count, shouldStart };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
