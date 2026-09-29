@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import type { GameEvent, GameState } from "@portable-ludo/engine";
 
-export type PersistedGame={id:string;phase:GameState["phase"];ruleset:string;state:GameState;version:number};
+export type PersistedGame={id:string;phase:GameState["phase"];ruleset:string;state:GameState;version:number;turnDurationMs:number};
 export type RoomRecord={
  id:string;code:string;ownerPlayerId:string;ruleset:string;playerCount:number;status:string;gameId:string|null;
  turnDurationMs:number;botSlots:number;botDifficulty:"EASY"|"NORMAL"|"HARD";
@@ -82,7 +82,7 @@ export class GameStore{
    if(room.rows[0].game_id&&room.rows[0].game_id!==gameId)throw new Error("ROOM_GAME_CONFLICT");
    if(players.length!==Number(room.rows[0].player_count))throw new Error("ROOM_PLAYER_COUNT_MISMATCH");
    if(new Set(players.map(p=>p.playerId)).size!==players.length||new Set(players.map(p=>p.slotIndex)).size!==players.length)throw new Error("ROOM_PLAYER_SET_INVALID");
-   await client.query("INSERT INTO games(id,phase,ruleset,state_json,version) VALUES ($1,$2,$3,$4,1)",[gameId,state.phase,ruleset,JSON.stringify(state)]);
+   await client.query("INSERT INTO games(id,phase,ruleset,state_json,version,turn_duration_ms) VALUES ($1,$2,$3,$4,1,$5)",[gameId,state.phase,ruleset,JSON.stringify(state)]);
    for(const p of players)await client.query("INSERT INTO game_players(game_id,player_id,slot_index,display_name) VALUES ($1,$2,$3,$4)",[gameId,p.playerId,p.slotIndex,p.displayName]);
    const startPlayerId=state.players[state.currentPlayerIndex]?.playerId;if(!startPlayerId)throw new Error("GAME_START_PLAYER_MISSING");
    const startEvent={type:"GAME_STARTED",turnId:state.turnId,playerId:startPlayerId};
@@ -96,13 +96,13 @@ export class GameStore{
  }
  async resetStartingRoom(roomId:string):Promise<void>{const r=await this.pool.query("UPDATE rooms SET status='WAITING',updated_at=now() WHERE id=$1 AND status='STARTING' AND game_id IS NULL",[roomId]);if(r.rowCount!==1)throw new Error("ROOM_RESET_FAILED");}
  async markBotGame(gameId:string,difficulty:"EASY"|"NORMAL"|"HARD"):Promise<void>{await this.pool.query("INSERT INTO bot_games(game_id,difficulty) VALUES ($1,$2) ON CONFLICT(game_id) DO UPDATE SET difficulty=EXCLUDED.difficulty",[gameId,difficulty]);}
- async createGame(id:string,state:GameState,ruleset:string):Promise<void>{await this.pool.query("INSERT INTO games(id,phase,ruleset,state_json,version) VALUES ($1,$2,$3,$4,0)",[id,state.phase,ruleset,JSON.stringify(state)]);}
+ async createGame(id:string,state:GameState,ruleset:string,turnDurationMs=15000):Promise<void>{await this.pool.query("INSERT INTO games(id,phase,ruleset,state_json,version,turn_duration_ms) VALUES ($1,$2,$3,$4,0,$5)",[id,state.phase,ruleset,JSON.stringify(state),turnDurationMs]);}
  async listActiveGameIds():Promise<readonly string[]>{const r=await this.pool.query("SELECT id FROM games WHERE phase='ACTIVE' ORDER BY created_at ASC");return r.rows.map((x:any)=>String(x.id));}
  async loadGame(id:string):Promise<PersistedGame|null>{
-  const r=await this.pool.query("SELECT id,phase,ruleset,state_json,version,updated_at FROM games WHERE id=$1",[id]);const row=r.rows[0] as any;if(!row)return null;const state=row.state_json as GameState;
-  if(state.phase==="ACTIVE"&&(state.turnStartedAt===undefined||state.turnExpiresAt===undefined)){const startedAt=new Date(row.updated_at).getTime();state.turnStartedAt=startedAt;state.turnExpiresAt=startedAt+15000}
+  const r=await this.pool.query("SELECT id,phase,ruleset,state_json,version,updated_at,turn_duration_ms FROM games WHERE id=$1",[id]);const row=r.rows[0] as any;if(!row)return null;const state=row.state_json as GameState;
+  if(state.phase==="ACTIVE"&&(state.turnStartedAt===undefined||state.turnExpiresAt===undefined)){const startedAt=new Date(row.updated_at).getTime();state.turnStartedAt=startedAt;state.turnExpiresAt=startedAt+Number(row.turn_duration_ms??15000)}
   if(state.phase!=="ACTIVE"){state.turnStartedAt=null;state.turnExpiresAt=null}
-  return {id:String(row.id),phase:row.phase,ruleset:String(row.ruleset),state,version:Number(row.version)};
+  return {id:String(row.id),phase:row.phase,ruleset:String(row.ruleset),state,version:Number(row.version),turnDurationMs:Number(row.turn_duration_ms??15000)};
  }
  async saveTransition(id:string,expectedVersion:number,state:GameState,events:readonly GameEvent[]):Promise<number>{
   const client=await this.pool.connect();
