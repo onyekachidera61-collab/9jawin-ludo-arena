@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import type { GameEvent, GameState } from "@portable-ludo/engine";
 
@@ -25,11 +26,11 @@ export class GameStore {
     try {
       await client.query("BEGIN");
       await client.query(
-        "INSERT INTO matchmaking_queue(player_id, display_name, ruleset, player_count, status) VALUES ($1,$2,$3,$4,'WAITING') ON CONFLICT (player_id,ruleset,player_count) DO UPDATE SET display_name=EXCLUDED.display_name,status='WAITING',created_at=now()",
+        "INSERT INTO matchmaking_queue(player_id, display_name, ruleset, player_count, status, updated_at) VALUES ($1,$2,$3,$4,'WAITING',now()) ON CONFLICT (player_id,ruleset,player_count) DO UPDATE SET display_name=EXCLUDED.display_name,status='WAITING',updated_at=now()",
         [playerId, displayName, ruleset, playerCount]
       );
       const rows = await client.query<{ player_id: string }>(
-        "SELECT player_id FROM matchmaking_queue WHERE status='WAITING' AND ruleset=$1 AND player_count=$2 ORDER BY created_at FOR UPDATE SKIP LOCKED",
+        "SELECT player_id FROM matchmaking_queue WHERE status='WAITING' AND ruleset=$1 AND player_count=$2 AND updated_at > now() - interval '2 minutes' ORDER BY created_at FOR UPDATE SKIP LOCKED",
         [ruleset, playerCount]
       );
       if (rows.rows.length < playerCount) {
@@ -37,7 +38,7 @@ export class GameStore {
         return { matched: false, playerIds: rows.rows.map((r) => r.player_id) };
       }
       const selected = rows.rows.slice(0, playerCount).map((r) => r.player_id);
-      await client.query("UPDATE matchmaking_queue SET status='MATCHED' WHERE player_id = ANY($1::text[]) AND ruleset=$2 AND player_count=$3", [selected, ruleset, playerCount]);
+      await client.query("UPDATE matchmaking_queue SET status='MATCHED', updated_at=now() WHERE player_id = ANY($1::text[]) AND ruleset=$2 AND player_count=$3", [selected, ruleset, playerCount]);
       await client.query("COMMIT");
       return { matched: true, playerIds: selected };
     } catch (error) {
@@ -47,7 +48,7 @@ export class GameStore {
   }
 
   async cancelMatchmaking(playerId: string, ruleset: string, playerCount: 2 | 4): Promise<void> {
-    await this.pool.query("UPDATE matchmaking_queue SET status='CANCELLED' WHERE player_id=$1 AND ruleset=$2 AND player_count=$3 AND status='WAITING'", [playerId, ruleset, playerCount]);
+    await this.pool.query("UPDATE matchmaking_queue SET status='CANCELLED', updated_at=now() WHERE player_id=$1 AND ruleset=$2 AND player_count=$3 AND status='WAITING'", [playerId, ruleset, playerCount]);
   }
 
   async createGuestSession(sessionId: string, playerId: string, displayName: string, sessionTokenNonce: string, expiresAt: Date): Promise<void> {
@@ -179,7 +180,7 @@ export class GameStore {
       const uniqueSlots = new Set(players.map((player) => player.slotIndex));
       if (uniquePlayers.size !== players.length || uniqueSlots.size !== players.length) throw new Error("ROOM_PLAYER_SET_INVALID");
       await client.query(
-        "INSERT INTO games (id,phase,ruleset,state_json,version) VALUES ($1,$2,$3,$4,0)",
+        "INSERT INTO games (id,phase,ruleset,state_json,version) VALUES ($1,$2,$3,$4,1)",
         [gameId, state.phase, ruleset, JSON.stringify(state)]
       );
       for (const player of players) {
@@ -188,6 +189,17 @@ export class GameStore {
           [gameId, player.playerId, player.slotIndex, player.displayName]
         );
       }
+      const startPlayerId = state.players[state.currentPlayerIndex]?.playerId;
+      if (!startPlayerId) throw new Error("GAME_START_PLAYER_MISSING");
+      const startEvent = { type: "GAME_STARTED", turnId: state.turnId, playerId: startPlayerId };
+      await client.query(
+        "INSERT INTO game_events (event_id,game_id,sequence_number,event_type,player_id,payload,server_timestamp) VALUES ($1,$2,1,$3,$4,$5,$6)",
+        [randomUUID(), gameId, startEvent.type, startPlayerId, JSON.stringify(startEvent), new Date()]
+      );
+      await client.query(
+        "INSERT INTO game_snapshots (game_id,sequence_number,state_json) VALUES ($1,1,$2)",
+        [gameId, JSON.stringify(state)]
+      );
       const activation = await client.query(
         "UPDATE rooms SET status='ACTIVE', game_id=$2, updated_at=now() WHERE id=$1 AND status='STARTING' AND game_id IS NULL",
         [roomId, gameId]
@@ -264,11 +276,27 @@ export class GameStore {
       let sequence = expectedVersion;
       for (const event of events) {
         sequence += 1;
+        const eventId = randomUUID();
         await client.query(
-          "INSERT INTO game_events (game_id,sequence_number,event_type,player_id,payload) VALUES ($1,$2,$3,$4,$5)",
-          [id, sequence, event.type, "playerId" in event ? event.playerId : null, JSON.stringify(event)]
+          "INSERT INTO game_events (event_id,game_id,sequence_number,event_type,player_id,payload,server_timestamp) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+          [eventId, id, sequence, event.type, "playerId" in event ? event.playerId : null, JSON.stringify(event), new Date()]
         );
+        if (event.type === "DICE_ROLLED") {
+          await client.query(
+            "INSERT INTO game_moves (game_id,turn_id,player_id,token_id,dice_value,move_distance) VALUES ($1,$2,$3,NULL,$4,NULL)",
+            [id, event.turnId, event.playerId, event.roll]
+          );
+        } else if (event.type === "TOKEN_MOVED") {
+          await client.query(
+            "INSERT INTO game_moves (game_id,turn_id,player_id,token_id,dice_value,move_distance) VALUES ($1,$2,$3,$4,NULL,$5)",
+            [id, event.turnId, event.playerId, event.tokenId, event.distance]
+          );
+        }
       }
+      await client.query(
+        "INSERT INTO game_snapshots (game_id,sequence_number,state_json) VALUES ($1,$2,$3) ON CONFLICT (game_id,sequence_number) DO UPDATE SET state_json=EXCLUDED.state_json",
+        [id, nextVersion, JSON.stringify(state)]
+      );
       await client.query("COMMIT");
       return nextVersion;
     } catch (error) {

@@ -70,7 +70,7 @@ export class RoomManager {
     if (!activeRoom || activeRoom.status !== "ACTIVE" || activeRoom.gameId !== gameId) {
       throw new Error("ROOM_FINALIZATION_MISMATCH");
     }
-    const session = GameSession.fromPersisted(gameId, started.state, 0, this.store);
+    const session = GameSession.fromPersisted(gameId, started.state, 1, this.store);
     this.sessions.set(gameId, session);
 
     return {
