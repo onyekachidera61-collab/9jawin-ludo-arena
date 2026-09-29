@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { WebSocketServer, type WebSocket } from "ws";
 import { clientMessageSchema, type ClientMessage, type ServerMessage } from "./protocol.js";
 import { RoomManager } from "./room-manager.js";
-import { issueSessionToken, verifySessionToken } from "./session-tokens.js";
+import { issueSessionToken, verifySessionToken, verifySessionTokenClaims } from "./session-tokens.js";
 import type { TokenId } from "@portable-ludo/engine";
 import { createPool, GameStore } from "@portable-ludo/persistence";
 
@@ -66,8 +66,11 @@ wss.on("connection", (socket) => {
       }
 
       if (parsed.type === "ROOM_JOIN") {
-        const tokenPlayerId = verifySessionToken(parsed.sessionToken, sessionSecret);
-        if (tokenPlayerId !== parsed.playerId) throw new Error("SESSION_PLAYER_MISMATCH");
+        const claims = verifySessionTokenClaims(parsed.sessionToken, sessionSecret);
+        if (claims.playerId !== parsed.playerId) throw new Error("SESSION_PLAYER_MISMATCH");
+        const guest = await store.getGuestSession(claims.playerId, claims.nonce);
+        if (!guest) throw new Error("INVALID_SESSION");
+        if (guest.displayName !== parsed.displayName) throw new Error("SESSION_DISPLAY_NAME_MISMATCH");
         const result = await rooms.joinLobby(parsed.roomId, parsed.playerId, parsed.displayName);
         const lobby = await rooms.getLobby(result.room.id);
         send(socket, { type: "ROOM_JOINED", room: lobby, players: lobby?.players ?? [], gameId: result.room.gameId });
@@ -105,8 +108,9 @@ wss.on("connection", (socket) => {
       }
 
       if (parsed.type === "JOIN") {
-        const tokenPlayerId = verifySessionToken(parsed.sessionToken, sessionSecret);
-        if (tokenPlayerId !== parsed.playerId) throw new Error("SESSION_PLAYER_MISMATCH");
+        const claims = verifySessionTokenClaims(parsed.sessionToken, sessionSecret);
+        if (claims.playerId !== parsed.playerId) throw new Error("SESSION_PLAYER_MISMATCH");
+        if (!(await store.getGuestSession(claims.playerId, claims.nonce))) throw new Error("INVALID_SESSION");
         const session = rooms.get(parsed.roomId) ?? await rooms.load(parsed.roomId);
         if (!session) throw new Error("GAME_NOT_FOUND");
         if (!(await store.isGameMember(parsed.roomId, parsed.playerId))) throw new Error("NOT_GAME_MEMBER");
@@ -119,8 +123,10 @@ wss.on("connection", (socket) => {
       }
 
       if (parsed.type === "RECONNECT") {
-        const tokenPlayerId = verifySessionToken(parsed.sessionToken, sessionSecret);
+        const claims = verifySessionTokenClaims(parsed.sessionToken, sessionSecret);
+        const tokenPlayerId = claims.playerId;
         if (tokenPlayerId !== playerId && playerId !== null) throw new Error("SESSION_PLAYER_MISMATCH");
+        if (!(await store.getGuestSession(claims.playerId, claims.nonce))) throw new Error("INVALID_SESSION");
         const session = rooms.get(parsed.gameId) ?? await rooms.load(parsed.gameId);
         if (!session) throw new Error("GAME_NOT_FOUND");
         if (!(await store.isGameMember(parsed.gameId, tokenPlayerId))) throw new Error("NOT_GAME_MEMBER");
