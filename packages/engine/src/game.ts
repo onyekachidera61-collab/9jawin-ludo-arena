@@ -61,7 +61,8 @@ export function createGame(playerIds: readonly PlayerId[], rules: RuleSet): Game
     winnerId: null,
     pendingRoll: null,
     turnStartedAt: null,
-    turnExpiresAt: null
+    turnExpiresAt: null,
+    moveCount: 0
   };
 }
 
@@ -252,6 +253,7 @@ export function applyMove(
       state: {
         ...state,
         players,
+        moveCount: (state.moveCount ?? 0) + 1,
         phase: "FINISHED",
         winnerId: player.playerId,
         pendingRoll: null,
@@ -272,7 +274,7 @@ export function applyMove(
     (rules.extraRollOnHome && events.some((event) => event.type === "TOKEN_REACHED_HOME"));
   if (grantsExtra && state.consecutiveSixes < 3) {
     return {
-      state: { ...state, players, pendingRoll: null },
+      state: { ...state, players, moveCount: (state.moveCount ?? 0) + 1, pendingRoll: null },
       events: [...events, {
         type: "EXTRA_ROLL_GRANTED",
         turnId: state.turnId,
