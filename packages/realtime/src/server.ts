@@ -195,6 +195,14 @@ wss.on("connection", (socket) => {
         const session = rooms.get(parsed.gameId) ?? await rooms.load(parsed.gameId);
         if (!session) throw new Error("GAME_NOT_FOUND");
         if (!(await store.isGameMember(parsed.gameId, tokenPlayerId))) throw new Error("NOT_GAME_MEMBER");
+        const existingSocket = socketsByPlayer.get(tokenPlayerId);
+        if (existingSocket && existingSocket !== socket && existingSocket.readyState === existingSocket.OPEN) {
+          try {
+            existingSocket.close(4001, "REPLACED_BY_RECONNECT");
+          } catch {
+            // The authoritative socket mapping below still replaces the stale connection.
+          }
+        }
         session.join(tokenPlayerId);
         playerId = tokenPlayerId;
         gameId = parsed.gameId;
