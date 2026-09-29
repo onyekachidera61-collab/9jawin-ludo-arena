@@ -1,4 +1,4 @@
-import { Pool, type PoolClient } from "pg";
+import { Pool } from "pg";
 import type { GameEvent, GameState } from "@portable-ludo/engine";
 
 export type PersistedGame = {
@@ -7,6 +7,12 @@ export type PersistedGame = {
   ruleset: string;
   state: GameState;
   version: number;
+};
+
+
+export type RoomRecord = {
+  id: string; code: string; ownerPlayerId: string; ruleset: string;
+  playerCount: number; status: string; gameId: string | null;
 };
 
 export class GameStore {
@@ -48,6 +54,46 @@ export class GameStore {
   async getRoomPlayers(roomId: string): Promise<Array<{playerId:string; slotIndex:number; displayName:string; ready:boolean}>> {
     const result = await this.pool.query("SELECT player_id,slot_index,display_name,ready FROM room_players WHERE room_id=$1 ORDER BY slot_index", [roomId]);
     return result.rows.map((row) => ({ playerId:String(row.player_id), slotIndex:Number(row.slot_index), displayName:String(row.display_name), ready:Boolean(row.ready) }));
+  }
+
+  async joinRoom(roomIdOrCode: string, playerId: string, displayName: string): Promise<{ room: RoomRecord; slotIndex: number; playerCount: number }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const roomResult = await client.query(
+        "SELECT id,code,owner_player_id,ruleset,player_count,status,game_id FROM rooms WHERE (id=$1 OR code=$1) AND expires_at > now() FOR UPDATE",
+        [roomIdOrCode]
+      );
+      const row = roomResult.rows[0] as { id:string; code:string; owner_player_id:string; ruleset:string; player_count:number; status:string; game_id:string|null } | undefined;
+      if (!row) throw new Error("ROOM_NOT_FOUND");
+      if (row.status !== "WAITING") throw new Error("ROOM_NOT_WAITING");
+
+      const existing = await client.query("SELECT slot_index FROM room_players WHERE room_id=$1 AND player_id=$2", [row.id, playerId]);
+      if (existing.rowCount === 1) {
+        await client.query("COMMIT");
+        return { room: { id:row.id, code:row.code, ownerPlayerId:row.owner_player_id, ruleset:row.ruleset, playerCount:row.player_count, status:row.status, gameId:row.game_id }, slotIndex:Number(existing.rows[0].slot_index), playerCount:row.player_count };
+      }
+
+      const count = await client.query("SELECT COUNT(*)::int AS count FROM room_players WHERE room_id=$1", [row.id]);
+      const occupied = Number(count.rows[0].count);
+      if (occupied >= row.player_count) throw new Error("ROOM_FULL");
+
+      const slotResult = await client.query("SELECT slot_index FROM room_players WHERE room_id=$1 ORDER BY slot_index", [row.id]);
+      const used = new Set(slotResult.rows.map((x) => Number(x.slot_index)));
+      let slotIndex = 0;
+      while (used.has(slotIndex)) slotIndex += 1;
+      await client.query(
+        "INSERT INTO room_players (room_id,player_id,slot_index,display_name) VALUES ($1,$2,$3,$4)",
+        [row.id, playerId, slotIndex, displayName]
+      );
+      await client.query("COMMIT");
+      return { room: { id:row.id, code:row.code, ownerPlayerId:row.owner_player_id, ruleset:row.ruleset, playerCount:row.player_count, status:row.status, gameId:row.game_id }, slotIndex, playerCount:row.player_count };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async createGame(id: string, state: GameState, ruleset: string): Promise<void> {
@@ -102,46 +148,3 @@ export function createPool(databaseUrl: string): Pool {
 }
 
 
-export type RoomRecord = {
-  id: string;
-  code: string;
-  ownerPlayerId: string;
-  ruleset: string;
-  playerCount: number;
-  status: string;
-  gameId: string | null;
-};
-
-export async function createRoom(
-  pool: Pool,
-  room: { id: string; code: string; ownerPlayerId: string; ruleset: string; playerCount: number; expiresAt: Date }
-): Promise<void> {
-  await pool.query(
-    "INSERT INTO rooms (id,code,owner_player_id,ruleset,player_count,status,expires_at) VALUES ($1,$2,$3,$4,$5,'WAITING',$6)",
-    [room.id, room.code, room.ownerPlayerId, room.ruleset, room.playerCount, room.expiresAt]
-  );
-}
-
-export async function addRoomPlayer(pool: Pool, roomId: string, playerId: string, slotIndex: number, displayName: string): Promise<void> {
-  await pool.query(
-    "INSERT INTO room_players (room_id,player_id,slot_index,display_name) VALUES ($1,$2,$3,$4)",
-    [roomId, playerId, slotIndex, displayName]
-  );
-}
-
-export async function getRoom(pool: Pool, roomIdOrCode: string): Promise<RoomRecord | null> {
-  const result = await pool.query(
-    "SELECT id,code,owner_player_id,ruleset,player_count,status,game_id FROM rooms WHERE (id=$1 OR code=$1) AND expires_at > now()",
-    [roomIdOrCode]
-  );
-  const row = result.rows[0] as { id:string; code:string; owner_player_id:string; ruleset:string; player_count:number; status:string; game_id:string|null } | undefined;
-  return row ? { id:row.id, code:row.code, ownerPlayerId:row.owner_player_id, ruleset:row.ruleset, playerCount:row.player_count, status:row.status, gameId:row.game_id } : null;
-}
-
-export async function getRoomPlayers(pool: Pool, roomId: string): Promise<Array<{playerId:string; slotIndex:number; displayName:string; ready:boolean}>> {
-  const result = await pool.query(
-    "SELECT player_id,slot_index,display_name,ready FROM room_players WHERE room_id=$1 ORDER BY slot_index",
-    [roomId]
-  );
-  return result.rows.map((row) => ({ playerId:String(row.player_id), slotIndex:Number(row.slot_index), displayName:String(row.display_name), ready:Boolean(row.ready) }));
-}
