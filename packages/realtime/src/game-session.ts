@@ -123,6 +123,14 @@ export class GameSession {
     return this.enqueue(async () => {
       if (await this.expireIfNeeded(Date.now())) throw new Error("TURN_EXPIRED");
       const result = recordRoll(this.state, rollDie(), playerId);
+      const moves = getLegalMoves(result.state, playerId, result.rollState.value, STANDARD_RULES);
+      if (!moves.length) {
+        const resolved = resolveNoLegalMove(result.state, STANDARD_RULES);
+        const events = result.events.concat(resolved.events);
+        await this.commit(resolved.state, events);
+        this.rollStates.delete(playerId);
+        return { roll: result.rollState.value, events };
+      }
       await this.commit(result.state, result.events);
       this.rollStates.set(playerId, result.rollState);
       return { roll: result.rollState.value, events: result.events };
