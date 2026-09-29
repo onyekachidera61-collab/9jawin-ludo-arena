@@ -93,6 +93,32 @@ wss.on("connection", (socket) => {
         return;
       }
 
+      if (parsed.type === "CREATE_ROOM") {
+        const claims = verifySessionTokenClaims(parsed.sessionToken, sessionSecret);
+        const guest = await store.getGuestSession(claims.playerId, claims.nonce);
+        if (!guest) throw new Error("INVALID_SESSION");
+
+        const room = await rooms.createLobby(guest.playerId, guest.displayName, parsed.playerCount);
+        playerId = guest.playerId;
+        gameId = null;
+
+        let members = lobbySockets.get(room.id);
+        if (!members) {
+          members = new Map<string, WebSocket>();
+          lobbySockets.set(room.id, members);
+        }
+        members.set(guest.playerId, socket);
+
+        const lobby = await rooms.getLobby(room.id);
+        send(socket, {
+          type: "ROOM_JOINED",
+          room: lobby,
+          players: lobby?.players ?? [],
+          gameId: null
+        });
+        return;
+      }
+
       if (parsed.type === "ROOM_JOIN") {
         const claims = verifySessionTokenClaims(parsed.sessionToken, sessionSecret);
         if (claims.playerId !== parsed.playerId) throw new Error("SESSION_PLAYER_MISMATCH");
