@@ -5,6 +5,9 @@ export function assertGameInvariants(state: GameState, rules: RuleSet): void {
   if (!rules.playerCounts.includes(state.players.length as 2 | 4)) throw new Error("INVALID_PLAYER_COUNT");
   const ids = new Set(state.players.map((p) => p.playerId));
   if (ids.size !== state.players.length) throw new Error("DUPLICATE_PLAYER");
+  if (rules.name === "LEAGUE") {
+    if (!state.leagueDeck || state.leagueDeck.length !== 36 || (state.leagueDeckIndex ?? 0) < 0 || (state.leagueDeckIndex ?? 0) > 36) throw new Error("INVALID_LEAGUE_DECK_STATE");
+  }
   if ((state.moveCount ?? 0) < 0 || !Number.isInteger(state.moveCount ?? 0)) throw new Error("INVALID_MOVE_COUNT");
   if (state.currentPlayerIndex < 0 || state.currentPlayerIndex >= state.players.length) throw new Error("INVALID_CURRENT_PLAYER");
   for (const player of state.players) {
