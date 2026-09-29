@@ -81,6 +81,65 @@ const httpServer = createServer(async (req, res) => {
     }
   }
 
+  if (req.url?.startsWith("/leaderboard") && req.method === "GET") {
+    try {
+      const query = new URL(req.url, "http://localhost").searchParams;
+      const limit = Number(query.get("limit") ?? 100);
+      const entries = await store.getLeaderboard(Number.isFinite(limit) ? limit : 100);
+      res.writeHead(200, {"content-type":"application/json","cache-control":"no-store"});
+      res.end(JSON.stringify({entries}));
+    } catch {
+      res.writeHead(500, {"content-type":"application/json"});
+      res.end(JSON.stringify({error:"LEADERBOARD_UNAVAILABLE"}));
+    }
+    return;
+  }
+
+  if (req.url?.startsWith("/replay?") && req.method === "GET") {
+    try {
+      const query = new URL(req.url, "http://localhost").searchParams;
+      const gameId = query.get("game");
+      if (!gameId || gameId.length > 64) throw new Error("INVALID_GAME");
+      const game = await store.loadGame(gameId);
+      if (!game || game.phase !== "FINISHED") throw new Error("REPLAY_NOT_AVAILABLE");
+      const events = await store.listGameEvents(gameId);
+      const snapshots = await store.listGameSnapshots(gameId);
+      res.writeHead(200, {"content-type":"application/json","cache-control":"no-store"});
+      res.end(JSON.stringify({gameId,ruleset:game.ruleset,events,snapshots}));
+    } catch (error) {
+      const code=error instanceof Error?error.message:"REPLAY_FAILED";
+      res.writeHead(code==="REPLAY_NOT_AVAILABLE"?404:400,{"content-type":"application/json"});
+      res.end(JSON.stringify({error:code}));
+    }
+    return;
+  }
+
+  if (req.url?.startsWith("/admin/game?") && req.method === "GET") {
+    const expected = process.env.ADMIN_SECRET;
+    const authorization = req.headers.authorization ?? "";
+    if (!expected || authorization !== `Bearer ${expected}`) {
+      res.writeHead(401,{"content-type":"application/json"});
+      res.end(JSON.stringify({error:"ADMIN_UNAUTHORIZED"}));
+      return;
+    }
+    try {
+      const query = new URL(req.url, "http://localhost").searchParams;
+      const gameId = query.get("game");
+      if (!gameId || gameId.length > 64) throw new Error("INVALID_GAME");
+      const game = await store.loadGame(gameId);
+      if (!game) throw new Error("GAME_NOT_FOUND");
+      const events = await store.listGameEvents(gameId);
+      await store.writeAdminAudit("admin","GAME_READ",gameId,{});
+      res.writeHead(200,{"content-type":"application/json","cache-control":"no-store"});
+      res.end(JSON.stringify({game,events}));
+    } catch (error) {
+      const code=error instanceof Error?error.message:"ADMIN_GAME_FAILED";
+      res.writeHead(code==="GAME_NOT_FOUND"?404:400,{"content-type":"application/json"});
+      res.end(JSON.stringify({error:code}));
+    }
+    return;
+  }
+
   res.writeHead(404);
   res.end();
 });
