@@ -119,7 +119,11 @@ export class GameStore {
       );
       const shouldStart = occupied + 1 === row.player_count;
       if (shouldStart) {
-        await client.query("UPDATE rooms SET status='STARTING', updated_at=now() WHERE id=$1 AND status='WAITING'", [row.id]);
+        const transition = await client.query(
+          "UPDATE rooms SET status='STARTING', updated_at=now() WHERE id=$1 AND status='WAITING' AND game_id IS NULL",
+          [row.id]
+        );
+        if (transition.rowCount !== 1) throw new Error("ROOM_START_TRANSITION_FAILED");
       }
       await client.query("COMMIT");
       return { room: { id:row.id, code:row.code, ownerPlayerId:row.owner_player_id, ruleset:row.ruleset, playerCount:row.player_count, status:shouldStart ? "STARTING" : row.status, gameId:row.game_id }, slotIndex, playerCount:row.player_count, shouldStart };
