@@ -180,7 +180,7 @@ export class GameStore {
       const uniqueSlots = new Set(players.map((player) => player.slotIndex));
       if (uniquePlayers.size !== players.length || uniqueSlots.size !== players.length) throw new Error("ROOM_PLAYER_SET_INVALID");
       await client.query(
-        "INSERT INTO games (id,phase,ruleset,state_json,version) VALUES ($1,$2,$3,$4,0)",
+        "INSERT INTO games (id,phase,ruleset,state_json,version) VALUES ($1,$2,$3,$4,1)",
         [gameId, state.phase, ruleset, JSON.stringify(state)]
       );
       for (const player of players) {
