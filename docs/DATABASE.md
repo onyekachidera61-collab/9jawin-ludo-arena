@@ -1,15 +1,32 @@
 # Portable Ludo Database
 
-PostgreSQL is the authoritative durable store for completed game transitions.
+PostgreSQL is the authoritative durable store for game state, transitions, guest-session validation, rooms, and competitive projections.
 
-## Current tables
+## Schema
 
-- `games`: authoritative serialized game state plus monotonically increasing version.
-- `game_events`: append-only transition journal keyed by `game_id` and `sequence_number`.
+The executable baseline schema is:
+
+`packages/persistence/src/schema.sql`
+
+It defines:
+
+- `games`: authoritative serialized game state and optimistic-concurrency version.
+- `game_events`: append-only transition journal.
+- `game_players`: authoritative game membership.
+- `game_tokens`: token projection support.
+- `game_moves`: move audit projection.
+- `game_snapshots`: replay/recovery snapshots.
+- `guest_sessions`: durable guest nonce and expiry validation.
+- `rooms` / `room_players`: transactional private-room lifecycle.
+- `matchmaking_queue`: future public matchmaking coordination.
+- `bot_games`: bot/test-game exclusion marker.
+- `leaderboard_entries`: completed-game ranking projection.
+- `rule_sets`: persisted ruleset definitions.
+- `admin_audit_logs`: administrative audit trail.
 
 ## Transaction rule
 
-A state transition and its emitted events must be committed in one PostgreSQL transaction. The game version advances by the number of events written, so the version is also the highest persisted event sequence.
+A state transition and its emitted events are committed in one PostgreSQL transaction. The game version advances by the number of events written, so the version is also the highest persisted event sequence.
 
 Optimistic concurrency uses:
 
@@ -19,10 +36,16 @@ A zero-row update is a version conflict and must not be broadcast as a successfu
 
 ## Recovery
 
-A process restart must load the latest `games.state_json` and version before accepting commands. The event journal remains available for audit and replay.
+A process restart loads the latest `games.state_json` and version before accepting commands. Active-game turn deadlines are persisted inside the state, so recovery does not silently grant a fresh turn.
 
-## Migration
+The event journal remains available for audit and replay.
 
-Initial schema: `packages/persistence/migrations/001_initial.sql`.
+## Applying the schema
 
-The current implementation is a foundation. Full transition persistence must be completed before production use.
+Apply `packages/persistence/src/schema.sql` to the target PostgreSQL database before starting the realtime server.
+
+Production migrations should be introduced as numbered, immutable SQL migrations before changing an already deployed schema.
+
+## Production rule
+
+Never point development/test tooling at a production database. Financial or real-money functionality is outside this project.
