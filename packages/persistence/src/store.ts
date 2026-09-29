@@ -135,9 +135,13 @@ export class GameStore {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const room = await client.query("SELECT id,status,game_id FROM rooms WHERE id=$1 FOR UPDATE", [roomId]);
+      const room = await client.query("SELECT id,status,game_id,player_count FROM rooms WHERE id=$1 FOR UPDATE", [roomId]);
       if (room.rowCount !== 1 || room.rows[0].status !== "STARTING") throw new Error("ROOM_STARTING_REQUIRED");
       if (room.rows[0].game_id && room.rows[0].game_id !== gameId) throw new Error("ROOM_GAME_CONFLICT");
+      if (players.length !== Number(room.rows[0].player_count)) throw new Error("ROOM_PLAYER_COUNT_MISMATCH");
+      const uniquePlayers = new Set(players.map((player) => player.playerId));
+      const uniqueSlots = new Set(players.map((player) => player.slotIndex));
+      if (uniquePlayers.size !== players.length || uniqueSlots.size !== players.length) throw new Error("ROOM_PLAYER_SET_INVALID");
       await client.query(
         "INSERT INTO games (id,phase,ruleset,state_json,version) VALUES ($1,$2,$3,$4,0) ON CONFLICT (id) DO NOTHING",
         [gameId, state.phase, ruleset, JSON.stringify(state)]
