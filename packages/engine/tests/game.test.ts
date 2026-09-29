@@ -32,7 +32,7 @@ describe("game transitions", () => {
           ? {
               ...player,
               tokens: player.tokens.map((token, tokenIndex) =>
-                tokenIndex === 0 ? { ...token, progress: 39, movementPoints: 39 } : token
+                tokenIndex === 0 ? { ...token, progress: 13, movementPoints: 13 } : token
               )
             }
           : player
