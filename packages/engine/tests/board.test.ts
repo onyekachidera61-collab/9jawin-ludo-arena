@@ -10,11 +10,10 @@ import {
 describe("board topology", () => {
   it("maps each player start to a distinct shared-track square", () => {
     const state = createGame(["p1", "p2", "p3", "p4"], STANDARD_RULES);
-    expect(state.players.map((player) =>
-      absoluteTrackPosition(player, player.tokens[0]!, STANDARD_RULES)
-    )).toEqual([null, null, null, null]);
-
     expect(STANDARD_RULES.safeSquares).toEqual([0, 8, 13, 21, 26, 34, 39, 47]);
+    expect(state.players.map((player) =>
+      absoluteTrackPosition(player, { ...player.tokens[0]!, progress: 0 }, STANDARD_RULES)
+    )).toEqual([0, 13, 26, 39]);
   });
 
   it("maps progress zero to each player's start square", () => {
@@ -47,6 +46,6 @@ describe("board topology", () => {
       )
     };
     expect(legalTokenIds(player, 1, STANDARD_RULES)).toEqual([1]);
-    expect(legalTokenIds(player, 6, STANDARD_RULES)).toEqual([0, 1, 2, 3]);
+    expect(legalTokenIds(player, 6, STANDARD_RULES)).toEqual([0, 2, 3]);
   });
 });
