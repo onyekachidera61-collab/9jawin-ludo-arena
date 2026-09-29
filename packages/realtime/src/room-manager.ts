@@ -29,7 +29,7 @@ export class RoomManager{
   for(let i=0;i<botsNeeded;i++){const botId=`bot-${randomUUID()}`;await this.store.addRoomPlayer(joined.room.id,botId,players.length+i,`Bot ${joined.room.botDifficulty}`)}
   const finalPlayers=await this.store.getRoomPlayers(joined.room.id);
   const gameId=randomUUID();const rules=this.rulesFor(joined.room);const waiting=createGame(finalPlayers.map(p=>p.playerId),rules);const started=startGame(waiting,rules);
-  try{await this.store.finalizeRoomGame(joined.room.id,gameId,started.state,rules.name,finalPlayers);if(finalPlayers.some(p=>p.playerId.startsWith("bot-")))await this.store.markBotGame(gameId,joined.room.botDifficulty)}
+  try{await this.store.finalizeRoomGame(joined.room.id,gameId,started.state,rules.name,rules.turnDurationMs,finalPlayers);if(finalPlayers.some(p=>p.playerId.startsWith("bot-")))await this.store.markBotGame(gameId,joined.room.botDifficulty)}
   catch(error){try{await this.store.resetStartingRoom(joined.room.id)}catch(resetError){throw new Error(`ROOM_FINALIZATION_FAILED_AND_RESET_FAILED: ${resetError instanceof Error?resetError.message:"UNKNOWN_RESET_ERROR"}`,{cause:error})}throw error}
   const activeRoom=await this.store.getRoom(joined.room.id);if(!activeRoom||activeRoom.status!=="ACTIVE"||activeRoom.gameId!==gameId)throw new Error("ROOM_FINALIZATION_MISMATCH");
   const session=GameSession.fromPersisted(gameId,started.state,1,this.store,rules);this.sessions.set(gameId,session);
@@ -38,5 +38,5 @@ export class RoomManager{
  get(gameId:string):GameSession|undefined{return this.sessions.get(gameId)}
  async recoverActiveGames():Promise<void>{for(const gameId of await this.store.listActiveGameIds())await this.load(gameId)}
  async expireTurns(now=Date.now()){const expired:Array<{gameId:string;events:readonly import("@portable-ludo/engine").GameEvent[]}>=[];for(const [gameId,session] of this.sessions){const events=await session.expireTurn(now);if(events.length)expired.push({gameId,events})}return expired}
- async load(gameId:string):Promise<GameSession|undefined>{const persisted=await this.store.loadGame(gameId);if(!persisted)return undefined;const rules=this.rulesFor({ruleset:persisted.ruleset,turnDurationMs:15000});const session=GameSession.fromPersisted(gameId,persisted.state,persisted.version,this.store,rules);this.sessions.set(gameId,session);return session}
+ async load(gameId:string):Promise<GameSession|undefined>{const persisted=await this.store.loadGame(gameId);if(!persisted)return undefined;const rules=this.rulesFor({ruleset:persisted.ruleset,turnDurationMs:persisted.turnDurationMs});const session=GameSession.fromPersisted(gameId,persisted.state,persisted.version,this.store,rules);this.sessions.set(gameId,session);return session}
 }
