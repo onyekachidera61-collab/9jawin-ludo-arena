@@ -106,12 +106,15 @@ export function applyMove(
   const tokens = player.tokens.map((candidate) =>
     candidate.tokenId === tokenId ? moved.token : candidate
   );
+  const basePlayers = state.players.map((candidate, index) =>
+    index === playerIndex ? { ...candidate, tokens } : candidate
+  );
   let captured: { playerIndex: number; tokenIndex: number; playerId: PlayerId; tokenId: TokenId } | null = null;
   const movedTrack = trackPosition(player.colorIndex, moved.token.progress, rules);
   if (movedTrack !== null && !rules.safeSquares.includes(movedTrack)) {
-    for (let opponentIndex = 0; opponentIndex < players.length; opponentIndex += 1) {
+    for (let opponentIndex = 0; opponentIndex < basePlayers.length; opponentIndex += 1) {
       if (opponentIndex === playerIndex) continue;
-      const opponent = players[opponentIndex]!;
+      const opponent = basePlayers[opponentIndex]!;
       for (let tokenIndex = 0; tokenIndex < opponent.tokens.length; tokenIndex += 1) {
         const opponentToken = opponent.tokens[tokenIndex]!;
         const opponentTrack = trackPosition(opponent.colorIndex, opponentToken.progress, rules);
@@ -130,7 +133,7 @@ export function applyMove(
   }
 
   const playersAfterCapture = captured
-    ? players.map((candidate, index) => {
+    ? basePlayers.map((candidate, index) => {
         if (index !== captured!.playerIndex) return candidate;
         return {
           ...candidate,
@@ -141,7 +144,7 @@ export function applyMove(
           )
         };
       })
-    : players;
+    : basePlayers;
 
   const updatedPlayer = {
     ...player,
