@@ -46,6 +46,7 @@ export function createGame(playerIds: readonly PlayerId[], rules: RuleSet): Game
       score: 0,
       consecutiveMissedTurns: 0,
       eliminated: false,
+      timebankRemainingMs: rules.timebankMs,
       tokens: [0, 1, 2, 3].map((tokenId) => ({
         tokenId: tokenId as 0 | 1 | 2 | 3,
         progress: rules.yardProgress,
