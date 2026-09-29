@@ -1,20 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { GameSession } from "./game-session.js";
-import { createGame, startGame, STANDARD_RULES } from "@portable-ludo/engine";
+import { createGame, startGame, STANDARD_RULES, LEAGUE_RULES, type RuleSet } from "@portable-ludo/engine";
 import type { GameStore } from "@portable-ludo/persistence";
 
 export class RoomManager {
   private readonly sessions = new Map<string, GameSession>();
   constructor(private readonly store: GameStore) {}
-  async create(playerIds: readonly string[]): Promise<GameSession> {
+  async create(playerIds: readonly string[], rules: RuleSet = STANDARD_RULES): Promise<GameSession> {
     const gameId = randomUUID();
-    const session = GameSession.create(gameId, playerIds, this.store);
-    await this.store.createGame(gameId, session.snapshot().state, "STANDARD");
+    const session = GameSession.create(gameId, playerIds, this.store, rules);
+    await this.store.createGame(gameId, session.snapshot().state, rules.name);
     for (let i = 0; i < playerIds.length; i += 1) await this.store.addGamePlayer(gameId, playerIds[i]!, i, playerIds[i]!);
     this.sessions.set(gameId, session);
     return session;
   }
-  async createLobby(ownerPlayerId: string, displayName: string, playerCount: 2 | 4 = 2): Promise<{ id: string; code: string }> {
+  async createLobby(ownerPlayerId: string, displayName: string, playerCount: 2 | 4 = 2, ruleset: "STANDARD"|"LEAGUE" = "STANDARD"): Promise<{ id: string; code: string }> {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const id = randomUUID();
       const code = `LUDO-${randomUUID().replaceAll("-", "").slice(0, 4).toUpperCase()}`;
@@ -23,7 +23,7 @@ export class RoomManager {
           id,
           code,
           ownerPlayerId,
-          ruleset: "STANDARD",
+          ruleset,
           playerCount,
           expiresAt: new Date(Date.now() + 30 * 60_000),
           displayName
@@ -51,10 +51,11 @@ export class RoomManager {
 
     const players = await this.store.getRoomPlayers(joined.room.id);
     const gameId = randomUUID();
-    const waiting = createGame(players.map((p) => p.playerId), STANDARD_RULES);
-    const started = startGame(waiting);
+    const rules = joined.room.ruleset === "LEAGUE" ? LEAGUE_RULES : STANDARD_RULES;
+    const waiting = createGame(players.map((p) => p.playerId), rules);
+    const started = startGame(waiting, rules);
     try {
-      await this.store.finalizeRoomGame(joined.room.id, gameId, started.state, "STANDARD", players);
+      await this.store.finalizeRoomGame(joined.room.id, gameId, started.state, rules.name, players);
     } catch (error) {
       try {
         await this.store.resetStartingRoom(joined.room.id);
@@ -70,7 +71,7 @@ export class RoomManager {
     if (!activeRoom || activeRoom.status !== "ACTIVE" || activeRoom.gameId !== gameId) {
       throw new Error("ROOM_FINALIZATION_MISMATCH");
     }
-    const session = GameSession.fromPersisted(gameId, started.state, 1, this.store);
+    const session = GameSession.fromPersisted(gameId, started.state, 1, this.store, rules);
     this.sessions.set(gameId, session);
 
     return {
