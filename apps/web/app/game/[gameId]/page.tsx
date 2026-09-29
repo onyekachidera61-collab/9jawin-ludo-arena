@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { connectGame, getSession } from "../../../lib/realtime";
 
@@ -16,6 +16,7 @@ export default function GamePage(){
   const [state,setState]=useState<State|null>(null);
   const [error,setError]=useState("");
   const [lastRoll,setLastRoll]=useState<number|null>(null);
+  const connectRef=useRef<ReturnType<typeof connectGame>|null>(null);
   const [now,setNow]=useState(Date.now());
   const playerId=useMemo(()=>{try{return getSession().playerId}catch{return ""}},[]);
 
@@ -26,7 +27,8 @@ export default function GamePage(){
       events:(events)=>{const dice=[...(events as any[])].find((e)=>e.type==="DICE_ROLLED");if(dice)setLastRoll(dice.roll)},
       error:(e)=>setError(String((e as any)?.code||"ERROR"))
     });
-    return()=>{window.clearInterval(timer);c.close()};
+    connectRef.current=c;
+    return()=>{window.clearInterval(timer);c.close();connectRef.current=null};
   },[gameId]);
 
   if(!state)return <main className="min-h-screen bg-slate-950 p-6 text-white"><div className="mx-auto max-w-6xl"><h1 className="text-3xl font-black">Portable Ludo</h1><p className="mt-8 rounded-2xl bg-white/5 p-6">Reconnecting to game…</p></div></main>;
@@ -65,7 +67,7 @@ export default function GamePage(){
           <div className="flex items-center justify-between"><span className="text-sm text-slate-400">Status</span><span className="rounded-full bg-white/10 px-3 py-1 text-xs">{state.phase}</span></div>
           <p className="mt-3 text-sm text-slate-300">{legalHint}</p>
           <div className="mt-5 rounded-2xl bg-slate-950 p-5 text-center"><div className="text-xs uppercase tracking-widest text-slate-500">Dice</div><div className="mt-2 text-5xl font-black">{pending?.value??lastRoll??"—"}</div></div>
-          <button disabled={!myTurn||!!state.pendingRoll||state.phase!=="ACTIVE"} onClick={()=>connectRef?.roll()} className="mt-4 w-full rounded-2xl bg-amber-400 p-4 font-black text-slate-950 disabled:opacity-40">Roll dice</button>
+          <button disabled={!myTurn||!!state.pendingRoll||state.phase!=="ACTIVE"} onClick={()=>connectRef.current?.roll()} className="mt-4 w-full rounded-2xl bg-amber-400 p-4 font-black text-slate-950 disabled:opacity-40">Roll dice</button>
           {error&&<p className="mt-3 rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
         </aside>
       </section>
@@ -73,7 +75,7 @@ export default function GamePage(){
       <section className="mt-5 rounded-3xl border border-white/10 bg-white/5 p-5">
         <div className="flex items-center justify-between"><h2 className="text-xl font-black">Your tokens</h2><span className="text-sm text-slate-400">{myTurn?pending?"Select a legal token":"Roll the dice":"Waiting for your turn"}</span></div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {(me?.tokens??[]).map(token=><button key={token.tokenId} disabled={!myTurn||!pending||state.phase!=="ACTIVE"} onClick={()=>connectRef?.move(token.tokenId)} className="rounded-2xl border border-white/10 bg-slate-950 p-4 text-left transition hover:border-amber-300 disabled:opacity-40"><div className="flex items-center justify-between"><span className="font-black">Token {token.tokenId+1}</span><span className="text-amber-300">{token.progress===57?"HOME":token.progress<0?"YARD":token.progress}</span></div><div className="mt-2 text-xs text-slate-400">{progressLabel(token.progress)} · {token.movementPoints} points{token.homeMultiplierApplied?" · doubled":""}</div></button>)}
+          {(me?.tokens??[]).map(token=><button key={token.tokenId} disabled={!myTurn||!pending||state.phase!=="ACTIVE"} onClick={()=>connectRef.current?.move(token.tokenId)} className="rounded-2xl border border-white/10 bg-slate-950 p-4 text-left transition hover:border-amber-300 disabled:opacity-40"><div className="flex items-center justify-between"><span className="font-black">Token {token.tokenId+1}</span><span className="text-amber-300">{token.progress===57?"HOME":token.progress<0?"YARD":token.progress}</span></div><div className="mt-2 text-xs text-slate-400">{progressLabel(token.progress)} · {token.movementPoints} points{token.homeMultiplierApplied?" · doubled":""}</div></button>)}
         </div>
       </section>
 
@@ -82,4 +84,4 @@ export default function GamePage(){
   </main>;
 }
 
-let connectRef: ReturnType<typeof connectGame>|null=null;
+
