@@ -2,7 +2,7 @@ import { canMove, moveToken } from "./movement.js";
 import { playerScore } from "./score.js";
 import { absoluteTrackPosition, isSafeSquare } from "./board.js";
 import { canLandAt } from "./occupancy.js";
-import type { GameState, PlayerId, RuleSet, TokenId } from "./types.js";
+import type { GameState, PlayerId, RuleSet, TokenId, PendingRoll } from "./types.js";
 
 export type GameEvent =
   | { type: "GAME_STARTED"; turnId: number; playerId: PlayerId }
@@ -52,7 +52,8 @@ export function createGame(playerIds: readonly PlayerId[], rules: RuleSet): Game
     currentPlayerIndex: 0,
     turnId: 0,
     consecutiveSixes: 0,
-    winnerId: null
+    winnerId: null,
+    pendingRoll: null
   };
 }
 
@@ -74,9 +75,11 @@ export function recordRoll(
 ): TransitionResult & { rollState: RollState } {
   assertActiveTurn(state, playerId);
   if (!Number.isInteger(roll) || roll < 1 || roll > 6) throw new Error("INVALID_DICE");
+  if (state.pendingRoll !== null) throw new Error("ROLL_ALREADY_PENDING");
 
   const consecutiveSixes = roll === 6 ? state.consecutiveSixes + 1 : 0;
-  const nextState = { ...state, consecutiveSixes };
+  const pendingRoll: PendingRoll = { turnId: state.turnId, playerId, value: roll, consecutiveSixes };
+  const nextState = { ...state, consecutiveSixes, pendingRoll };
 
   return {
     state: nextState,
@@ -111,6 +114,7 @@ export function applyMove(
   assertActiveTurn(state, rollState.playerId);
   if (rollState.turnId !== state.turnId) throw new Error("STALE_TURN");
   if (rollState.consecutiveSixes !== state.consecutiveSixes) throw new Error("STALE_ROLL");
+  if (!state.pendingRoll || state.pendingRoll.turnId !== rollState.turnId || state.pendingRoll.playerId !== rollState.playerId || state.pendingRoll.value !== rollState.value) throw new Error("ROLL_NOT_PENDING");
 
   const playerIndex = state.players.findIndex((p) => p.playerId === rollState.playerId);
   if (playerIndex < 0) throw new Error("PLAYER_NOT_FOUND");
@@ -210,7 +214,7 @@ export function applyMove(
   const finished = updatedPlayer.tokens.every((candidate) => candidate.progress === rules.homeProgress);
   if (finished) {
     return {
-      state: { ...state, players, phase: "FINISHED", winnerId: player.playerId },
+      state: { ...state, players, phase: "FINISHED", winnerId: player.playerId, pendingRoll: null },
       events: [...events, {
         type: "GAME_FINISHED",
         turnId: state.turnId,
@@ -225,7 +229,7 @@ export function applyMove(
     (rules.extraRollOnHome && events.some((event) => event.type === "TOKEN_REACHED_HOME"));
   if (grantsExtra && state.consecutiveSixes < 3) {
     return {
-      state: { ...state, players },
+      state: { ...state, players, pendingRoll: null },
       events: [...events, {
         type: "EXTRA_ROLL_GRANTED",
         turnId: state.turnId,
@@ -234,7 +238,7 @@ export function applyMove(
     };
   }
 
-  return advanceTurn({ ...state, players }, rules);
+  return advanceTurn({ ...state, players, pendingRoll: null }, rules);
 }
 
 export function advanceTurn(state: GameState, _rules: RuleSet): TransitionResult {
