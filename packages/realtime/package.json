@@ -11,7 +11,8 @@
   "dependencies": {
     "@portable-ludo/engine": "file:../engine",
     "ws": "^8.18.3",
-    "zod": "^4.1.5"
+    "zod": "^4.1.5",
+    "@portable-ludo/persistence": "file:../persistence"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
