@@ -39,6 +39,17 @@ export class GameStore {
     await this.pool.query("INSERT INTO room_players (room_id,player_id,slot_index,display_name) VALUES ($1,$2,$3,$4)", [roomId, playerId, slotIndex, displayName]);
   }
 
+  async getRoom(roomIdOrCode: string): Promise<RoomRecord | null> {
+    const result = await this.pool.query("SELECT id,code,owner_player_id,ruleset,player_count,status,game_id FROM rooms WHERE (id=$1 OR code=$1) AND expires_at > now()", [roomIdOrCode]);
+    const row = result.rows[0] as { id:string; code:string; owner_player_id:string; ruleset:string; player_count:number; status:string; game_id:string|null } | undefined;
+    return row ? { id:row.id, code:row.code, ownerPlayerId:row.owner_player_id, ruleset:row.ruleset, playerCount:row.player_count, status:row.status, gameId:row.game_id } : null;
+  }
+
+  async getRoomPlayers(roomId: string): Promise<Array<{playerId:string; slotIndex:number; displayName:string; ready:boolean}>> {
+    const result = await this.pool.query("SELECT player_id,slot_index,display_name,ready FROM room_players WHERE room_id=$1 ORDER BY slot_index", [roomId]);
+    return result.rows.map((row) => ({ playerId:String(row.player_id), slotIndex:Number(row.slot_index), displayName:String(row.display_name), ready:Boolean(row.ready) }));
+  }
+
   async createGame(id: string, state: GameState, ruleset: string): Promise<void> {
     await this.pool.query(
       "INSERT INTO games (id, phase, ruleset, state_json, version) VALUES ($1,$2,$3,$4,0)",
