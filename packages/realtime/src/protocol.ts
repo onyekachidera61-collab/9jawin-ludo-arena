@@ -1,5 +1,25 @@
 import { z } from "zod";
 
+export const RULESETS = ["STANDARD", "LEAGUE"] as const;
+export type RulesetName = typeof RULESETS[number];
+
+export const matchmakingJoinSchema = z.object({
+  type: z.literal("MATCHMAKING_JOIN"),
+  ruleset: z.enum(RULESETS),
+  playerCount: z.union([z.literal(2), z.literal(4)]),
+  playerId: z.string().min(1).max(128),
+  displayName: z.string().min(3).max(20),
+  sessionToken: z.string().min(16).max(512)
+});
+
+export const matchmakingCancelSchema = z.object({
+  type: z.literal("MATCHMAKING_CANCEL"),
+  ruleset: z.enum(RULESETS),
+  playerCount: z.union([z.literal(2), z.literal(4)]),
+  playerId: z.string().min(1).max(128),
+  sessionToken: z.string().min(16).max(512)
+});
+
 export const clientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("PING") }),
   z.object({ type: z.literal("CREATE_ROOM"), playerCount: z.union([z.literal(2), z.literal(4)]), sessionToken: z.string().min(16).max(512) }),
@@ -12,25 +32,6 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
   matchmakingCancelSchema
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
-
-export const RULESETS = ["STANDARD", "LEAGUE"] as const;
-export type RulesetName = typeof RULESETS[number];
-
-export const matchmakingJoinSchema = z.object({
-  type: z.literal("MATCHMAKING_JOIN"),
-  ruleset: z.enum(RULESETS),
-  playerCount: z.union([z.literal(2), z.literal(4)]),
-  playerId: z.string().min(1).max(128),
-  displayName: z.string().min(3).max(20),
-  sessionToken: z.string().min(16).max(512)
-});
-export const matchmakingCancelSchema = z.object({
-  type: z.literal("MATCHMAKING_CANCEL"),
-  ruleset: z.enum(RULESETS),
-  playerCount: z.union([z.literal(2), z.literal(4)]),
-  playerId: z.string().min(1).max(128),
-  sessionToken: z.string().min(16).max(512)
-});
 
 export type ServerMessage =
   | { type: "PONG" }
