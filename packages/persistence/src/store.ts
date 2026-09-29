@@ -147,16 +147,20 @@ export class GameStore {
       const uniqueSlots = new Set(players.map((player) => player.slotIndex));
       if (uniquePlayers.size !== players.length || uniqueSlots.size !== players.length) throw new Error("ROOM_PLAYER_SET_INVALID");
       await client.query(
-        "INSERT INTO games (id,phase,ruleset,state_json,version) VALUES ($1,$2,$3,$4,0) ON CONFLICT (id) DO NOTHING",
+        "INSERT INTO games (id,phase,ruleset,state_json,version) VALUES ($1,$2,$3,$4,0)",
         [gameId, state.phase, ruleset, JSON.stringify(state)]
       );
       for (const player of players) {
         await client.query(
-          "INSERT INTO game_players (game_id,player_id,slot_index,display_name) VALUES ($1,$2,$3,$4) ON CONFLICT (game_id,player_id) DO NOTHING",
+          "INSERT INTO game_players (game_id,player_id,slot_index,display_name) VALUES ($1,$2,$3,$4)",
           [gameId, player.playerId, player.slotIndex, player.displayName]
         );
       }
-      await client.query("UPDATE rooms SET status='ACTIVE', game_id=$2, updated_at=now() WHERE id=$1 AND status='STARTING'", [roomId, gameId]);
+      const activation = await client.query(
+        "UPDATE rooms SET status='ACTIVE', game_id=$2, updated_at=now() WHERE id=$1 AND status='STARTING' AND game_id IS NULL",
+        [roomId, gameId]
+      );
+      if (activation.rowCount !== 1) throw new Error("ROOM_ACTIVATION_FAILED");
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
