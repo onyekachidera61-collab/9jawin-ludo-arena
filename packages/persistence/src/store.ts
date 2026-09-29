@@ -192,12 +192,28 @@ export class GameStore {
 
   async loadGame(id: string): Promise<PersistedGame | null> {
     const result = await this.pool.query(
-      "SELECT id, phase, ruleset, state_json, version FROM games WHERE id=$1",
+      "SELECT id, phase, ruleset, state_json, version, updated_at FROM games WHERE id=$1",
       [id]
     );
-    const row = result.rows[0] as { id:string; phase:GameState["phase"]; ruleset:string; state_json:GameState; version:string } | undefined;
+    const row = result.rows[0] as {
+      id:string;
+      phase:GameState["phase"];
+      ruleset:string;
+      state_json:GameState;
+      version:string;
+      updated_at:Date;
+    } | undefined;
     if (!row) return null;
-    return { id: row.id, phase: row.phase, ruleset: row.ruleset, state: row.state_json, version: Number(row.version) };
+    const state = row.state_json;
+    if (
+      state.phase === "ACTIVE" &&
+      (state.turnStartedAt === undefined || state.turnExpiresAt === undefined)
+    ) {
+      const startedAt = new Date(row.updated_at).getTime();
+      state.turnStartedAt = startedAt;
+      state.turnExpiresAt = startedAt + 15_000;
+    }
+    return { id: row.id, phase: row.phase, ruleset: row.ruleset, state, version: Number(row.version) };
   }
 
   async saveTransition(id: string, expectedVersion: number, state: GameState, events: readonly GameEvent[]): Promise<number> {
