@@ -1,5 +1,6 @@
 import { canMove, moveToken } from "./movement.js";
 import { playerScore } from "./score.js";
+import { absoluteTrackPosition, isSafeSquare } from "./board.js";
 import type { GameState, PlayerId, RuleSet, TokenId } from "./types.js";
 
 export type GameEvent =
@@ -110,8 +111,8 @@ export function applyMove(
     index === playerIndex ? { ...candidate, tokens } : candidate
   );
   let captured: { playerIndex: number; tokenIndex: number; playerId: PlayerId; tokenId: TokenId } | null = null;
-  const movedTrack = trackPosition(player.colorIndex, moved.token.progress, rules);
-  if (movedTrack !== null && !rules.safeSquares.includes(movedTrack)) {
+  const movedTrack = absoluteTrackPosition(player, moved.token, rules);
+  if (movedTrack !== null && !isSafeSquare(movedTrack, rules)) {
     for (let opponentIndex = 0; opponentIndex < basePlayers.length; opponentIndex += 1) {
       if (opponentIndex === playerIndex) continue;
       const opponent = basePlayers[opponentIndex]!;
