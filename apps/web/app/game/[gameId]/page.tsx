@@ -37,7 +37,6 @@ export default function GamePage(){
   const me=state.players.find(p=>p.playerId===playerId);
   const current=state.players[state.currentPlayerIndex];
   const myTurn=current?.playerId===playerId;
-  const playerColor=state.players.findIndex(p=>p.playerId===playerId);
   const seconds=state.turnExpiresAt===null?0:Math.max(0,Math.ceil((state.turnExpiresAt-now)/1000));
   const pending=state.pendingRoll?.playerId===playerId?state.pendingRoll:null;
   const legalHint=pending?"Choose a token that can move.":"Roll when it is your turn.";
@@ -59,7 +58,7 @@ export default function GamePage(){
 
       <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
         <div className="rounded-3xl border border-white/10 bg-emerald-950/80 p-4 sm:p-6">
-          <div className="mx-auto grid aspect-square max-w-[680px] grid-cols-15 overflow-hidden rounded-2xl border-4 border-white/10 bg-slate-900">
+          <div className="mx-auto grid aspect-square max-w-[680px] grid-cols-[repeat(15,minmax(0,1fr))] overflow-hidden rounded-2xl border-4 border-white/10 bg-slate-900">
             {PATH.map(({r,col},i)=>{
               const trackIndex=i;
               const occupied=(me?.tokens??[]).filter(t=>t.progress===trackIndex).length;
