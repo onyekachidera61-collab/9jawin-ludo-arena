@@ -84,6 +84,23 @@ export function recordRoll(
   };
 }
 
+
+export function getLegalMoves(state: GameState, playerId: PlayerId, roll: number, rules: RuleSet): readonly TokenId[] {
+  assertActiveTurn(state, playerId);
+  if (!Number.isInteger(roll) || roll < 1 || roll > 6) throw new Error("INVALID_DICE");
+  const player = state.players[state.currentPlayerIndex]!;
+  const legal: TokenId[] = [];
+  for (const token of player.tokens) {
+    if (!canMove(token, roll, rules)) continue;
+    const moved = moveToken(player, token.tokenId, roll, rules);
+    if (!moved.ok) continue;
+    const tokens = player.tokens.map((candidate) => candidate.tokenId === token.tokenId ? moved.token : candidate);
+    const projected = state.players.map((candidate, index) => index === state.currentPlayerIndex ? { ...candidate, tokens } : candidate);
+    if (canLandAt(projected, player, moved.token, rules)) legal.push(token.tokenId);
+  }
+  return legal;
+}
+
 export function applyMove(
   state: GameState,
   rollState: RollState,
