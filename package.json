@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "npm run dev --workspace @portable-ludo/web",
     "build": "npm run build --workspace @portable-ludo/web",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build --workspace @portable-ludo/engine && npm run build --workspace @portable-ludo/persistence && npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "format:check": "npm run format:check --workspaces --if-present"
   }
