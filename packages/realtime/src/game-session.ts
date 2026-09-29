@@ -56,6 +56,14 @@ export class GameSession {
     );
     assertGameInvariants(state, STANDARD_RULES);
     session.state = state;
+    if (state.pendingRoll) {
+      session.rollStates.set(state.pendingRoll.playerId, {
+        turnId: state.pendingRoll.turnId,
+        playerId: state.pendingRoll.playerId,
+        value: state.pendingRoll.value,
+        consecutiveSixes: state.pendingRoll.consecutiveSixes
+      });
+    }
     return session;
   }
 
