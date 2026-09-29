@@ -89,6 +89,7 @@ wss.on("connection", (socket) => {
         for (const lobbyPlayer of result.players ?? []) {
           const waitingSocket = members.get(lobbyPlayer.playerId);
           if (!waitingSocket) continue;
+          session.join(lobbyPlayer.playerId);
           send(waitingSocket, { type: "ROOM_JOINED", room: lobby, players: result.players ?? [], gameId: result.gameId });
           send(waitingSocket, { type: "STATE", gameId: result.gameId, state: session.snapshot().state });
           socketsByPlayer.set(lobbyPlayer.playerId, waitingSocket);
