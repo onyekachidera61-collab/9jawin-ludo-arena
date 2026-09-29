@@ -24,6 +24,7 @@ export class GameSession {
   private readonly players: SessionPlayer[];
   private readonly rollStates = new Map<PlayerId, RollState>();
   private version: number;
+  private commandTail: Promise<void> = Promise.resolve();
 
   private constructor(
     gameId: string,
@@ -81,6 +82,12 @@ export class GameSession {
     return this.state;
   }
 
+  private enqueue<T>(command: () => Promise<T>): Promise<T> {
+    const run = this.commandTail.then(command, command);
+    this.commandTail = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
   private async commit(nextState: GameState, events: readonly GameEvent[]): Promise<void> {
     assertGameInvariants(nextState, STANDARD_RULES);
     const nextVersion = await this.store.saveTransition(
@@ -94,28 +101,34 @@ export class GameSession {
   }
 
   async start(): Promise<readonly GameEvent[]> {
-    const result = startGame(this.state);
-    await this.commit(result.state, result.events);
-    return result.events;
+    return this.enqueue(async () => {
+      const result = startGame(this.state);
+      await this.commit(result.state, result.events);
+      return result.events;
+    });
   }
 
   async roll(playerId: PlayerId): Promise<{ roll: number; events: readonly GameEvent[] }> {
-    const result = recordRoll(this.state, rollDie(), playerId);
-    await this.commit(result.state, result.events);
-    this.rollStates.set(playerId, result.rollState);
-    return { roll: result.rollState.value, events: result.events };
+    return this.enqueue(async () => {
+      const result = recordRoll(this.state, rollDie(), playerId);
+      await this.commit(result.state, result.events);
+      this.rollStates.set(playerId, result.rollState);
+      return { roll: result.rollState.value, events: result.events };
+    });
   }
 
   async move(playerId: PlayerId, tokenId: TokenId): Promise<readonly GameEvent[]> {
-    const rollState = this.rollStates.get(playerId);
-    if (!rollState) throw new Error("NO_PENDING_ROLL");
+    return this.enqueue(async () => {
+      const rollState = this.rollStates.get(playerId);
+      if (!rollState) throw new Error("NO_PENDING_ROLL");
 
-    const legal = getLegalMoves(this.state, playerId, rollState.value, STANDARD_RULES);
-    if (!legal.includes(tokenId)) throw new Error("ILLEGAL_MOVE");
+      const legal = getLegalMoves(this.state, playerId, rollState.value, STANDARD_RULES);
+      if (!legal.includes(tokenId)) throw new Error("ILLEGAL_MOVE");
 
-    const result = applyMove(this.state, rollState, tokenId, STANDARD_RULES);
-    await this.commit(result.state, result.events);
-    this.rollStates.delete(playerId);
-    return result.events;
+      const result = applyMove(this.state, rollState, tokenId, STANDARD_RULES);
+      await this.commit(result.state, result.events);
+      this.rollStates.delete(playerId);
+      return result.events;
+    });
   }
 }
