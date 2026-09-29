@@ -18,6 +18,16 @@ describe("turn clock", () => {
   });
 });
 
+describe("persisted clock recovery", () => {
+  it("keeps the original deadline after reconstruction", () => {
+    const state = startGame(createGame(["p1", "p2"], STANDARD_RULES), STANDARD_RULES, 5_000).state;
+    const restored = { ...state };
+    const clock = createTurnClock(restored, 99_000, STANDARD_RULES);
+    expect(clock.turnStartedAt).toBe(5_000);
+    expect(clock.turnExpiresAt).toBe(20_000);
+  });
+});
+
 describe("turn expiry", () => {
   it("increments missed turns and advances to the next player", () => {
     const state = startGame(createGame(["p1", "p2"], STANDARD_RULES)).state;
