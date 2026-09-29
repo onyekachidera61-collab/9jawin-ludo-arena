@@ -26,11 +26,11 @@ function openSocket():Promise<WebSocket>{
   });
 }
 
-export async function createRoom(session:Session,playerCount:2|4):Promise<Room>{
+export async function createRoom(session:Session,playerCount:2|4,ruleset:"STANDARD"|"LEAGUE"="STANDARD"):Promise<Room>{
   const ws=await openSocket();
   return new Promise((resolve,reject)=>{
     ws.onmessage=e=>{const message=JSON.parse(e.data);if(message.type==="ROOM_JOINED"){ws.close();resolve(message.room as Room)}else if(message.type==="ERROR"){ws.close();reject(new Error(message.code))}};
-    ws.send(JSON.stringify({type:"CREATE_ROOM",playerCount,sessionToken:session.sessionToken}));
+    ws.send(JSON.stringify({type:"CREATE_ROOM",playerCount,ruleset,sessionToken:session.sessionToken}));
   });
 }
 
