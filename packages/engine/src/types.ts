@@ -57,7 +57,7 @@ export type RuleSet = {
   threeSixesGrantExtraRoll: false;
   allowStacking: boolean;
   blockSize: number;
-  timebankMs: number;
+  timebankMs?: number;
 };
 
 export const STANDARD_RULES: RuleSet = {
