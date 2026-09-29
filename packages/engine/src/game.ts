@@ -120,7 +120,7 @@ export function applyMove(
       const opponent = basePlayers[opponentIndex]!;
       for (let tokenIndex = 0; tokenIndex < opponent.tokens.length; tokenIndex += 1) {
         const opponentToken = opponent.tokens[tokenIndex]!;
-        const opponentTrack = trackPosition(opponent.colorIndex, opponentToken.progress, rules);
+        const opponentTrack = absoluteTrackPosition(opponent, opponentToken, rules);
         if (opponentTrack === movedTrack && opponentToken.progress !== rules.yardProgress) {
           captured = {
             playerIndex: opponentIndex,
@@ -215,7 +215,7 @@ export function applyMove(
   return advanceTurn({ ...state, players }, rules);
 }
 
-export function advanceTurn(state: GameState, rules: RuleSet): TransitionResult {
+export function advanceTurn(state: GameState, _rules: RuleSet): TransitionResult {
   const nextIndex = findNextEligiblePlayer(state, state.currentPlayerIndex);
   if (nextIndex < 0) {
     return { state, events: [] };
