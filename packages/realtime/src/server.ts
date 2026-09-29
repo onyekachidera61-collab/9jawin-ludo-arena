@@ -19,8 +19,14 @@ const httpServer = createServer(async (req, res) => {
   res.setHeader("access-control-allow-headers", "content-type");
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
   if (req.url === "/health" && req.method === "GET") {
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ status: "ok" }));
+    try {
+      await store.ping();
+      res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+      res.end(JSON.stringify({ status: "ok", database: "ok" }));
+    } catch {
+      res.writeHead(503, { "content-type": "application/json", "cache-control": "no-store" });
+      res.end(JSON.stringify({ status: "degraded", database: "unavailable" }));
+    }
     return;
   }
 
@@ -89,7 +95,7 @@ function broadcast(gameId: string, message: ServerMessage): void {
 
 wss.on("connection", (socket, request) => {
   const origin = request.headers.origin;
-  if (webOrigin !== "*" && origin && origin !== webOrigin) {
+  if (webOrigin !== "*" && origin !== webOrigin) {
     socket.close(1008, "ORIGIN_NOT_ALLOWED");
     return;
   }
