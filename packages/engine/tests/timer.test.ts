@@ -3,8 +3,8 @@ import { STANDARD_RULES, createGame, createTurnClock, expireTurn, isTurnExpired,
 
 describe("turn clock", () => {
   it("uses the authoritative server timestamp and configured duration", () => {
-    const state = startGame(createGame(["p1", "p2"], STANDARD_RULES)).state;
-    const clock = createTurnClock(state, 1_000, STANDARD_RULES);
+    const state = startGame(createGame(["p1", "p2"], STANDARD_RULES), STANDARD_RULES, 1_000).state;
+    const clock = createTurnClock(state, 999_999, STANDARD_RULES);
     expect(clock.turnStartedAt).toBe(1_000);
     expect(clock.turnExpiresAt).toBe(16_000);
     expect(clock.playerId).toBe("p1");
