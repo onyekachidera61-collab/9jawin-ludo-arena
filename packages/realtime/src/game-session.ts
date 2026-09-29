@@ -11,7 +11,6 @@ import {
   rollDie,
   startGame,
   STANDARD_RULES,
-  LEAGUE_RULES,
   type GameEvent,
   type GameState,
   type PlayerId,
@@ -44,7 +43,7 @@ export class GameSession {
     this.version = version;
   }
 
-  static create(gameId: string, playerIds: readonly PlayerId[], store: GameStore, rules: RuleSet = this.rules): GameSession {
+  static create(gameId: string, playerIds: readonly PlayerId[], store: GameStore, rules: RuleSet = STANDARD_RULES): GameSession {
     return new GameSession(gameId, playerIds, store, rules);
   }
 
