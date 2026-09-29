@@ -8,3 +8,7 @@ export * from "./board.js";
 export * from "./occupancy.js";
 
 export * from "./invariants.js";
+
+export * from "./league.js";
+export * from "./bot.js";
+export * from "./replay.js";
