@@ -30,6 +30,23 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
+  if (req.url?.startsWith("/room-status?") && req.method === "GET") {
+    try {
+      const query = new URL(req.url, "http://localhost").searchParams;
+      const roomId = query.get("room");
+      if (!roomId || roomId.length > 64) throw new Error("INVALID_ROOM");
+      const lobby = await rooms.getLobby(roomId);
+      if (!lobby) throw new Error("ROOM_NOT_FOUND");
+      res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+      res.end(JSON.stringify(lobby));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "ROOM_STATUS_FAILED";
+      res.writeHead(code === "ROOM_NOT_FOUND" ? 404 : 400, { "content-type": "application/json", "cache-control": "no-store" });
+      res.end(JSON.stringify({ error: code }));
+    }
+    return;
+  }
+
   if (req.url === "/guest-session" && req.method === "POST") {
     try {
       const address = req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
