@@ -12,6 +12,7 @@ export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
 export type ServerMessage =
   | { type: "PONG" }
+  | { type: "ROOM_JOINED"; room: unknown; players: readonly unknown[]; gameId: string | null }
   | { type: "ERROR"; code: string; message: string }
   | { type: "STATE"; gameId: string; state: unknown }
   | { type: "DICE_ROLLED"; gameId: string; turnId: number; playerId: string; roll: number }
