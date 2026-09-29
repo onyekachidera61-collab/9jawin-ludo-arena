@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import type { GameEvent, GameState } from "@portable-ludo/engine";
 
