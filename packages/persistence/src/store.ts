@@ -73,7 +73,7 @@ export class GameStore{
   }catch(e){await client.query("ROLLBACK");throw e}finally{client.release()}
  }
 
- async finalizeRoomGame(roomId:string,gameId:string,state:GameState,ruleset:string,players:readonly {playerId:string;slotIndex:number;displayName:string}[]):Promise<void>{
+ async finalizeRoomGame(roomId:string,gameId:string,state:GameState,ruleset:string,turnDurationMs:number,players:readonly {playerId:string;slotIndex:number;displayName:string}[]):Promise<void>{
   const client=await this.pool.connect();
   try{
    await client.query("BEGIN");
