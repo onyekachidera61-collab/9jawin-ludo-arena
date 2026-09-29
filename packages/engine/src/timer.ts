@@ -90,7 +90,7 @@ export function expireTurn(state: GameState, now: number, clock: TurnClock, rule
 
   const nextIndex = findNextEligibleIndex(players, playerIndex);
   if (nextIndex < 0) {
-    return { state: { ...state, players }, events };
+    return { state: { ...state, players, pendingRoll: null }, events };
   }
 
   const nextTurnId = state.turnId + 1;
