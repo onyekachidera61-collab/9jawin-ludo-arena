@@ -1,8 +1,9 @@
 import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
 import { WebSocketServer, type WebSocket } from "ws";
 import { clientMessageSchema, type ClientMessage, type ServerMessage } from "./protocol.js";
 import { RoomManager } from "./room-manager.js";
-import { verifySessionToken } from "./session-tokens.js";
+import { issueSessionToken, verifySessionToken } from "./session-tokens.js";
 import type { TokenId } from "@portable-ludo/engine";
 import { createPool, GameStore } from "@portable-ludo/persistence";
 
