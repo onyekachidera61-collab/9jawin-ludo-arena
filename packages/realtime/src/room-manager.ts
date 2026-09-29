@@ -9,7 +9,7 @@ export class RoomManager {
 
   async create(playerIds: readonly string[]): Promise<GameSession> {
     const gameId = randomUUID();
-    const session = GameSession.create(gameId, playerIds);
+    const session = GameSession.create(gameId, playerIds, this.store);
     await this.store.createGame(gameId, session.snapshot().state, "STANDARD");
     this.sessions.set(gameId, session);
     return session;
@@ -22,7 +22,7 @@ export class RoomManager {
   async load(gameId: string): Promise<GameSession | undefined> {
     const persisted = await this.store.loadGame(gameId);
     if (!persisted) return undefined;
-    const session = GameSession.fromPersisted(gameId, persisted.state, persisted.version);
+    const session = GameSession.fromPersisted(gameId, persisted.state, persisted.version, this.store);
     this.sessions.set(gameId, session);
     return session;
   }
