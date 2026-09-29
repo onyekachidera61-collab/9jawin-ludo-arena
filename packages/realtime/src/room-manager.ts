@@ -29,7 +29,25 @@ export class RoomManager {
   }
 
   async joinLobby(roomIdOrCode: string, playerId: string, displayName: string) {
-    return this.store.joinRoom(roomIdOrCode, playerId, displayName);
+    const joined = await this.store.joinRoom(roomIdOrCode, playerId, displayName);
+    if (!joined.shouldStart) return joined;
+
+    const players = await this.store.getRoomPlayers(joined.room.id);
+    const gameId = randomUUID();
+    const waiting = createGame(players.map((p) => p.playerId), STANDARD_RULES);
+    const started = startGame(waiting);
+    await this.store.finalizeRoomGame(joined.room.id, gameId, started.state, "STANDARD", players);
+    const session = GameSession.fromPersisted(gameId, started.state, 0, this.store);
+    this.sessions.set(gameId, session);
+
+    return {
+      ...joined,
+      room: { ...joined.room, status: "ACTIVE", gameId },
+      gameId,
+      state: started.state,
+      events: started.events,
+      players
+    };
   }
 
   get(gameId: string): GameSession | undefined { return this.sessions.get(gameId); }
