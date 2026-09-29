@@ -53,7 +53,19 @@ export class RoomManager {
     const gameId = randomUUID();
     const waiting = createGame(players.map((p) => p.playerId), STANDARD_RULES);
     const started = startGame(waiting);
-    await this.store.finalizeRoomGame(joined.room.id, gameId, started.state, "STANDARD", players);
+    try {
+      await this.store.finalizeRoomGame(joined.room.id, gameId, started.state, "STANDARD", players);
+    } catch (error) {
+      try {
+        await this.store.resetStartingRoom(joined.room.id);
+      } catch (resetError) {
+        throw new Error(
+          `ROOM_FINALIZATION_FAILED_AND_RESET_FAILED: ${resetError instanceof Error ? resetError.message : "UNKNOWN_RESET_ERROR"}`,
+          { cause: error }
+        );
+      }
+      throw error;
+    }
     const activeRoom = await this.store.getRoom(joined.room.id);
     if (!activeRoom || activeRoom.status !== "ACTIVE" || activeRoom.gameId !== gameId) {
       throw new Error("ROOM_FINALIZATION_MISMATCH");
