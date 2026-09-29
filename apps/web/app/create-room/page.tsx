@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createGuest, createRoom } from "../../lib/realtime";
+import { createGuest, createRoom, getSession } from "../../lib/realtime";
 
 export default function CreateRoom(){
  const router=useRouter();
  const [name,setName]=useState(""); const [ruleset,setRuleset]=useState<"STANDARD"|"LEAGUE">("STANDARD");
  const [count,setCount]=useState<2|4>(2); const [turnSeconds,setTurnSeconds]=useState(15); const [botSlots,setBotSlots]=useState(0);
  const [difficulty,setDifficulty]=useState<"EASY"|"NORMAL"|"HARD">("NORMAL"); const [error,setError]=useState(""); const [busy,setBusy]=useState(false);
- async function submit(e:React.FormEvent){e.preventDefault();setBusy(true);setError("");try{const session=await createGuest(name);const room=await createRoom(session,count,ruleset,{turnDurationMs:turnSeconds*1000,botSlots,difficulty});router.push("/join-room?room="+encodeURIComponent(room.code))}catch(e){setError(e instanceof Error?e.message:"CREATE_ROOM_FAILED")}finally{setBusy(false)}}
+ async function submit(e:React.FormEvent){e.preventDefault();setBusy(true);setError("");try{let session;try{session=getSession()}catch{session=await createGuest(name)}if(session.displayName!==name.trim()){session=await createGuest(name)}const room=await createRoom(session,count,ruleset,{turnDurationMs:turnSeconds*1000,botSlots,difficulty});router.push("/join-room?room="+encodeURIComponent(room.code))}catch(e){setError(e instanceof Error?e.message:"CREATE_ROOM_FAILED")}finally{setBusy(false)}}
  return <main className="mx-auto min-h-screen max-w-xl px-6 py-12 text-white"><h1 className="text-4xl font-black">Create a room</h1><p className="mt-2 text-slate-400">Private, server-authoritative Ludo.</p>
  <form onSubmit={submit} className="mt-8 space-y-5 rounded-3xl border border-white/10 bg-white/5 p-6">
   <input required minLength={3} maxLength={20} value={name} onChange={e=>setName(e.target.value)} placeholder="Display name" className="w-full rounded-xl bg-black/30 p-3"/>
