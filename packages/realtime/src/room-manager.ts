@@ -17,8 +17,7 @@ export class RoomManager {
   async createLobby(ownerPlayerId: string, displayName: string, playerCount: 2 | 4 = 2): Promise<{ id: string; code: string }> {
     const id = randomUUID();
     const code = `LUDO-${randomUUID().replaceAll("-", "").slice(0, 4).toUpperCase()}`;
-    await this.store.createRoom({ id, code, ownerPlayerId, ruleset: "STANDARD", playerCount, expiresAt: new Date(Date.now() + 30 * 60_000) });
-    await this.store.addRoomPlayer(id, ownerPlayerId, 0, displayName);
+    await this.store.createRoomWithOwner({ id, code, ownerPlayerId, ruleset: "STANDARD", playerCount, expiresAt: new Date(Date.now() + 30 * 60_000), displayName });
     return { id, code };
   }
 
