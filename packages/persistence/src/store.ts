@@ -100,6 +100,33 @@ export class GameStore {
     }
   }
 
+  async finalizeRoomGame(roomId: string, gameId: string, state: GameState, ruleset: string, players: readonly { playerId: string; slotIndex: number; displayName: string }[]): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const room = await client.query("SELECT id,status,game_id FROM rooms WHERE id=$1 FOR UPDATE", [roomId]);
+      if (room.rowCount !== 1 || room.rows[0].status !== "STARTING") throw new Error("ROOM_STARTING_REQUIRED");
+      if (room.rows[0].game_id && room.rows[0].game_id !== gameId) throw new Error("ROOM_GAME_CONFLICT");
+      await client.query(
+        "INSERT INTO games (id,phase,ruleset,state_json,version) VALUES ($1,$2,$3,$4,0) ON CONFLICT (id) DO NOTHING",
+        [gameId, state.phase, ruleset, JSON.stringify(state)]
+      );
+      for (const player of players) {
+        await client.query(
+          "INSERT INTO game_players (game_id,player_id,slot_index,display_name) VALUES ($1,$2,$3,$4) ON CONFLICT (game_id,player_id) DO NOTHING",
+          [gameId, player.playerId, player.slotIndex, player.displayName]
+        );
+      }
+      await client.query("UPDATE rooms SET status='ACTIVE', game_id=$2, updated_at=now() WHERE id=$1 AND status='STARTING'", [roomId, gameId]);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async createGame(id: string, state: GameState, ruleset: string): Promise<void> {
     await this.pool.query(
       "INSERT INTO games (id, phase, ruleset, state_json, version) VALUES ($1,$2,$3,$4,0)",
