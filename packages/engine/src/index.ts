@@ -5,3 +5,4 @@ export * from "./score.js";
 export * from "./game.js";
 export * from "./timer.js";
 export * from "./board.js";
+export * from "./occupancy.js";
