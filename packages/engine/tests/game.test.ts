@@ -72,4 +72,21 @@ describe("game transitions", () => {
     expect(() => applyMove(rolled.state, rolled.rollState, 0, STANDARD_RULES)).toThrow("BLOCKED_DESTINATION");
   });
 
+  it("enumerates only legal tokens for a roll", async () => {
+    const { getLegalMoves } = await import("../src/index.js");
+    const state = startGame(createGame(["p1", "p2"], STANDARD_RULES)).state;
+    expect(getLegalMoves(state, "p1", 6, STANDARD_RULES)).toEqual([0, 1, 2, 3]);
+  });
+
+  it("rejects stale roll state", () => {
+    const state = startGame(createGame(["p1", "p2"], STANDARD_RULES)).state;
+    const rolled = recordRoll(state, 6, "p1");
+    expect(() => applyMove(
+      { ...rolled.state, turnId: rolled.state.turnId + 1 },
+      rolled.rollState,
+      0,
+      STANDARD_RULES
+    )).toThrow("STALE_TURN");
+  });
+
 });
