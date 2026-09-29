@@ -9,6 +9,7 @@ type Player = { playerId:string; colorIndex:number; tokens:Token[]; score:number
 type State = { phase:string; players:Player[]; currentPlayerIndex:number; turnId:number; consecutiveSixes:number; winnerId:string|null; pendingRoll:{value:number;playerId:string;turnId:number}|null; turnStartedAt:number|null; turnExpiresAt:number|null };
 
 const TRACK = 52;
+const PATH = Array.from({length:15},(_,r)=>Array.from({length:15},(_,col)=>({r,col}))).flat().filter(({r,col}) => !((r===0||r===14)&&(col===0||col===14)));
 const progressLabel=(p:number)=>p<0?"Yard":p===57?"Home":p<52?`Track ${p+1}`:`Home lane ${p-51}`;
 
 export default function GamePage(){
@@ -36,6 +37,7 @@ export default function GamePage(){
   const me=state.players.find(p=>p.playerId===playerId);
   const current=state.players[state.currentPlayerIndex];
   const myTurn=current?.playerId===playerId;
+  const playerColor=state.players.findIndex(p=>p.playerId===playerId);
   const seconds=state.turnExpiresAt===null?0:Math.max(0,Math.ceil((state.turnExpiresAt-now)/1000));
   const pending=state.pendingRoll?.playerId===playerId?state.pendingRoll:null;
   const legalHint=pending?"Choose a token that can move.":"Roll when it is your turn.";
@@ -57,8 +59,19 @@ export default function GamePage(){
 
       <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
         <div className="rounded-3xl border border-white/10 bg-emerald-950/80 p-4 sm:p-6">
-          <div className="grid grid-cols-8 gap-1 sm:grid-cols-13">
-            {Array.from({length:TRACK},(_,i)=><div key={i} className="relative aspect-square rounded-md border border-white/10 bg-white/10 p-1 text-[9px] text-slate-400"><span>{i+1}</span>{[0,8,13,21,26,34,39,47].includes(i)&&<span className="absolute bottom-1 right-1 text-amber-300">★</span>}</div>)}
+          <div className="mx-auto grid aspect-square max-w-[680px] grid-cols-15 overflow-hidden rounded-2xl border-4 border-white/10 bg-slate-900">
+            {PATH.map(({r,col},i)=>{
+              const trackIndex=i;
+              const occupied=(me?.tokens??[]).filter(t=>t.progress===trackIndex).length;
+              return <div key={r+"-"+col} className={`relative flex items-center justify-center border border-white/5 ${[0,13,26,39].includes(trackIndex)?"bg-amber-300/30":"bg-white/10"}`}>
+                <span className="text-[7px] text-slate-400 sm:text-[9px]">{trackIndex+1}</span>
+                {[0,8,13,21,26,34,39,47].includes(trackIndex)&&<span className="absolute right-0.5 top-0.5 text-[8px] text-amber-300">★</span>}
+                {occupied>0&&<span className="absolute bottom-0.5 right-0.5 rounded-full bg-amber-300 px-1 text-[8px] font-black text-slate-950">{occupied}</span>}
+              </div>;
+            })}
+          </div>
+          <div className="mt-3 grid grid-cols-4 gap-2 text-center text-[10px] text-slate-400">
+            {state.players.map((p,i)=><div key={p.playerId} className="rounded-xl bg-black/20 p-2">{p.playerId===playerId?"You":p.playerId}<div className="mt-1 font-black text-white">{p.tokens.filter(t=>t.progress===-1).length} yard · {p.tokens.filter(t=>t.progress===57).length} home</div></div>)}
           </div>
           <div className="mt-4 rounded-2xl bg-black/20 p-4 text-sm text-slate-300">Each square advanced earns 1 movement point. A token reaching Home doubles its accumulated movement points once.</div>
         </div>
