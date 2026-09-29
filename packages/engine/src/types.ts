@@ -19,6 +19,13 @@ export type PlayerState = {
 
 export type GamePhase = "WAITING" | "ACTIVE" | "FINISHED";
 
+export type PendingRoll = {
+  turnId: number;
+  playerId: PlayerId;
+  value: number;
+  consecutiveSixes: number;
+};
+
 export type GameState = {
   phase: GamePhase;
   players: readonly PlayerState[];
@@ -26,6 +33,7 @@ export type GameState = {
   turnId: number;
   consecutiveSixes: number;
   winnerId: PlayerId | null;
+  pendingRoll: PendingRoll | null;
 };
 
 export type RuleSet = {
