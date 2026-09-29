@@ -81,7 +81,8 @@ export function expireTurn(state: GameState, now: number, clock: TurnClock, rule
           ...state,
           players,
           phase: "FINISHED",
-          winnerId: winner.playerId
+          winnerId: winner.playerId,
+          pendingRoll: null
         },
         events
       };
@@ -107,7 +108,8 @@ export function expireTurn(state: GameState, now: number, clock: TurnClock, rule
       players,
       currentPlayerIndex: nextIndex,
       turnId: nextTurnId,
-      consecutiveSixes: 0
+      consecutiveSixes: 0,
+      pendingRoll: null
     },
     events
   };
