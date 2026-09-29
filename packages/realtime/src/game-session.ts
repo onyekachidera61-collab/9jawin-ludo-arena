@@ -118,7 +118,7 @@ export class GameSession {
   async start(): Promise<readonly GameEvent[]> {
     return this.enqueue(async () => {
       const result = startGame(this.state, this.rules);
-      await this.commit(rolledState, result.events);
+      await this.commit(result.state, result.events);
       return result.events;
     });
   }
@@ -140,7 +140,7 @@ export class GameSession {
         this.rollStates.delete(playerId);
         return { roll: result.rollState.value, events };
       }
-      await this.commit(result.state, result.events);
+      await this.commit(rolledState, result.events);
       this.rollStates.set(playerId, result.rollState);
       return { roll: result.rollState.value, events: result.events };
     });
