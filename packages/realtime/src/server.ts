@@ -4,7 +4,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { clientMessageSchema, type ClientMessage, type ServerMessage } from "./protocol.js";
 import { RoomManager } from "./room-manager.js";
 import { issueSessionToken, verifySessionToken, verifySessionTokenClaims } from "./session-tokens.js";
-import { chooseBotMove, STANDARD_RULES, LEAGUE_RULES, type TokenId } from "@portable-ludo/engine";
+import { chooseBotMove, STANDARD_RULES, LEAGUE_RULES, verifyReplay, type TokenId, type GameEvent } from "@portable-ludo/engine";
 import { createPool, GameStore } from "@portable-ludo/persistence";
 
 const port = Number(process.env.PORT ?? 4000);
@@ -108,8 +108,11 @@ const httpServer = createServer(async (req, res) => {
       if (!game || game.phase !== "FINISHED") throw new Error("REPLAY_NOT_AVAILABLE");
       const events = await store.listGameEvents(gameId);
       const snapshots = await store.listGameSnapshots(gameId);
+      const replayRules = game.ruleset === "LEAGUE" ? LEAGUE_RULES : STANDARD_RULES;
+      const replayEvents = events.map((event) => event.payload as GameEvent);
+      const audit = verifyReplay(replayEvents, snapshots, replayRules);
       res.writeHead(200, {"content-type":"application/json","cache-control":"no-store"});
-      res.end(JSON.stringify({gameId,ruleset:game.ruleset,events,snapshots}));
+      res.end(JSON.stringify({gameId,ruleset:game.ruleset,audit,events,snapshots}));
     } catch (error) {
       const code=error instanceof Error?error.message:"REPLAY_FAILED";
       res.writeHead(code==="REPLAY_NOT_AVAILABLE"?404:400,{"content-type":"application/json"});
