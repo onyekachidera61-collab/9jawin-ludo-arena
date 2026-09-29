@@ -104,7 +104,8 @@ export class RoomManager {
   async load(gameId: string): Promise<GameSession | undefined> {
     const persisted = await this.store.loadGame(gameId);
     if (!persisted) return undefined;
-    const session = GameSession.fromPersisted(gameId, persisted.state, persisted.version, this.store);
+    const rules = persisted.ruleset === "LEAGUE" ? LEAGUE_RULES : STANDARD_RULES;
+    const session = GameSession.fromPersisted(gameId, persisted.state, persisted.version, this.store, rules);
     this.sessions.set(gameId, session);
     return session;
   }
