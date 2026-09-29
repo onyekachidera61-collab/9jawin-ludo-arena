@@ -189,6 +189,17 @@ export class GameStore {
           [gameId, player.playerId, player.slotIndex, player.displayName]
         );
       }
+      const startPlayerId = state.players[state.currentPlayerIndex]?.playerId;
+      if (!startPlayerId) throw new Error("GAME_START_PLAYER_MISSING");
+      const startEvent = { type: "GAME_STARTED", turnId: state.turnId, playerId: startPlayerId };
+      await client.query(
+        "INSERT INTO game_events (event_id,game_id,sequence_number,event_type,player_id,payload,server_timestamp) VALUES ($1,$2,1,$3,$4,$5,$6)",
+        [randomUUID(), gameId, startEvent.type, startPlayerId, JSON.stringify(startEvent), new Date()]
+      );
+      await client.query(
+        "INSERT INTO game_snapshots (game_id,sequence_number,state_json) VALUES ($1,1,$2)",
+        [gameId, JSON.stringify(state)]
+      );
       const activation = await client.query(
         "UPDATE rooms SET status='ACTIVE', game_id=$2, updated_at=now() WHERE id=$1 AND status='STARTING' AND game_id IS NULL",
         [roomId, gameId]
