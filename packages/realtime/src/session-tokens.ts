@@ -1,5 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
+export type SessionClaims = { playerId: string; expiresAt: number; nonce: string };
+
 export function issueSessionToken(playerId: string, secret: string, ttlSeconds = 3600): string {
   const expiresAt = Math.floor(Date.now() / 1000) + ttlSeconds;
   const nonce = randomBytes(18).toString("base64url");
@@ -8,7 +10,7 @@ export function issueSessionToken(playerId: string, secret: string, ttlSeconds =
   return `${payload}.${signature}`;
 }
 
-export function verifySessionToken(token: string, secret: string): string {
+export function verifySessionTokenClaims(token: string, secret: string): SessionClaims {
   const parts = token.split(".");
   if (parts.length !== 4) throw new Error("INVALID_SESSION");
   const [playerId, expiryText, nonce, signature] = parts;
@@ -21,5 +23,9 @@ export function verifySessionToken(token: string, secret: string): string {
   const a = Buffer.from(signature ?? "", "utf8");
   const b = Buffer.from(expected, "utf8");
   if (a.length !== b.length || !timingSafeEqual(a, b)) throw new Error("INVALID_SESSION");
-  return playerId;
+  return { playerId, expiresAt, nonce };
+}
+
+export function verifySessionToken(token: string, secret: string): string {
+  return verifySessionTokenClaims(token, secret).playerId;
 }
