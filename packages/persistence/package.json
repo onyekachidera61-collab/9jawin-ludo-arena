@@ -1,0 +1,9 @@
+{
+  "name":"@portable-ludo/persistence",
+  "version":"0.1.0",
+  "private":true,
+  "type":"module",
+  "scripts":{"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit"},
+  "dependencies":{"@portable-ludo/engine":"file:../engine","pg":"^8.16.3"},
+  "devDependencies":{"@types/node":"^22.10.2","typescript":"^5.9.2"}
+}
