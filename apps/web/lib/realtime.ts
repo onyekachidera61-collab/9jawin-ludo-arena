@@ -34,7 +34,11 @@ export async function createRoom(session:Session,playerCount:2|4):Promise<Room>{
   });
 }
 
-export async function roomStatus(code:string):Promise<Room>{ const response=await fetch(httpBase+"/room-status?room="+encodeURIComponent(code),{cache:"no-store"}); const body=await response.json() as Record<string,unknown>; if(!response.ok) throw new Error(String(body.error||"ROOM_STATUS_FAILED")); return body as unknown as Room; }\n\nexport async function joinRoom(code:string,displayName:string):Promise<{room:Room;gameId:string|null}>{
+export async function roomStatus(code:string):Promise<Room>{ const response=await fetch(httpBase+"/room-status?room="+encodeURIComponent(code),{cache:"no-store"}); const body=await response.json() as Record<string,unknown>; if(!response.ok) throw new Error(String(body.error||"ROOM_STATUS_FAILED")); return body as unknown as Room; }
+
+export function openRealtime(): Promise<WebSocket> { return openSocket(); }
+
+export async function joinRoom(code:string,displayName:string):Promise<{room:Room;gameId:string|null}>{
   let session:Session;
   try{session=getSession()}catch{session=await createGuest(displayName)}
   const ws=await openSocket();
