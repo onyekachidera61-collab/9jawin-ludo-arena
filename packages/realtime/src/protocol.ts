@@ -35,6 +35,7 @@ export const matchmakingCancelSchema = z.object({
 export type ServerMessage =
   | { type: "PONG" }
   | { type: "ROOM_JOINED"; room: unknown; players: readonly unknown[]; gameId: string | null }
+  | { type: "MATCHMAKING_STATUS"; status: "WAITING" | "MATCHED" | "CANCELLED"; ruleset?: RulesetName; playerCount?: 2 | 4; gameId?: string }
   | { type: "ERROR"; code: string; message: string }
   | { type: "STATE"; gameId: string; state: unknown }
   | { type: "DICE_ROLLED"; gameId: string; turnId: number; playerId: string; roll: number }
