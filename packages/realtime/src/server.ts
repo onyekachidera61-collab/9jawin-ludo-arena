@@ -263,6 +263,13 @@ wss.on("connection", (socket, request) => {
         broadcast(gameId, { type: "STATE", gameId, state: session.snapshot().state });
       }
     } catch (error) {
+      if (error instanceof Error && error.message === "TURN_EXPIRED" && gameId) {
+        const session = rooms.get(gameId);
+        if (session) {
+          send(socket, { type: "STATE", gameId, state: session.snapshot().state });
+          broadcast(gameId, { type: "STATE", gameId, state: session.snapshot().state });
+        }
+      }
       send(socket, errorMessage(error));
     }
   });
