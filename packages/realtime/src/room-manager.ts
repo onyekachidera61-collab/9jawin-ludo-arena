@@ -27,6 +27,10 @@ export class RoomManager {
     return { ...room, players: await this.store.getRoomPlayers(room.id) };
   }
 
+  async joinLobby(roomIdOrCode: string, playerId: string, displayName: string) {
+    return this.store.joinRoom(roomIdOrCode, playerId, displayName);
+  }
+
   get(gameId: string): GameSession | undefined { return this.sessions.get(gameId); }
   async load(gameId: string): Promise<GameSession | undefined> {
     const persisted = await this.store.loadGame(gameId);
