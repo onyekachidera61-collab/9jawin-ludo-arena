@@ -48,12 +48,12 @@ describe("turn expiry", () => {
 
     expect(result.state.players[0]?.consecutiveMissedTurns).toBe(3);
     expect(result.state.players[0]?.eliminated).toBe(true);
-    expect(result.state.currentPlayerIndex).toBe(1);
+    expect(result.state.phase).toBe("FINISHED");
+    expect(result.state.winnerId).toBe("p2");
     expect(result.events.map((event) => event.type)).toEqual([
       "TURN_EXPIRED",
       "PLAYER_MISSED_TURN",
-      "PLAYER_ELIMINATED",
-      "TURN_ADVANCED"
+      "PLAYER_ELIMINATED"
     ]);
   });
 
