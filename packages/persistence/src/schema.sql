@@ -10,16 +10,24 @@ CREATE TABLE IF NOT EXISTS games (
 
 CREATE TABLE IF NOT EXISTS game_events (
   id BIGSERIAL PRIMARY KEY,
+  event_id UUID NOT NULL DEFAULT gen_random_uuid(),
   game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   sequence_number BIGINT NOT NULL,
   event_type TEXT NOT NULL,
   player_id TEXT,
   payload JSONB NOT NULL,
+  server_timestamp TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (event_id),
   UNIQUE (game_id, sequence_number)
 );
 
 CREATE INDEX IF NOT EXISTS game_events_game_id_idx ON game_events(game_id, sequence_number);
+ALTER TABLE game_events ADD COLUMN IF NOT EXISTS event_id UUID;
+ALTER TABLE game_events ADD COLUMN IF NOT EXISTS server_timestamp TIMESTAMPTZ NOT NULL DEFAULT now();
+UPDATE game_events SET event_id = gen_random_uuid() WHERE event_id IS NULL;
+ALTER TABLE game_events ALTER COLUMN event_id SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS game_events_event_id_idx ON game_events(event_id);
 
 
 CREATE TABLE IF NOT EXISTS rooms (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, owner_player_id TEXT NOT NULL, ruleset TEXT NOT NULL, player_count INTEGER NOT NULL, status TEXT NOT NULL, game_id TEXT UNIQUE REFERENCES games(id) ON DELETE SET NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), expires_at TIMESTAMPTZ NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
@@ -88,10 +96,12 @@ CREATE TABLE IF NOT EXISTS matchmaking_queue (
   ruleset TEXT NOT NULL,
   player_count INTEGER NOT NULL,
   status TEXT NOT NULL DEFAULT 'WAITING',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (player_id, ruleset, player_count)
 );
 CREATE INDEX IF NOT EXISTS matchmaking_queue_lookup_idx ON matchmaking_queue(status, ruleset, player_count, created_at);
+ALTER TABLE matchmaking_queue ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
 CREATE TABLE IF NOT EXISTS bot_games (
   game_id TEXT PRIMARY KEY REFERENCES games(id) ON DELETE CASCADE,
