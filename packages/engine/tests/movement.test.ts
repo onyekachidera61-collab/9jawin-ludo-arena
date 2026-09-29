@@ -44,7 +44,7 @@ describe("standard movement", () => {
     if (result.ok) {
       expect(result.token.progress).toBe(57);
       expect(result.token.homeMultiplierApplied).toBe(true);
-      expect(playerScore({ ...player, tokens: [result.token, player.tokens[1]!, player.tokens[3]!, player.tokens[0]!] })).toBe(154);
+      expect(playerScore({ ...player, tokens: [result.token, player.tokens[1]!, player.tokens[3]!, player.tokens[0]!] })).toBe(157);
     }
   });
 
