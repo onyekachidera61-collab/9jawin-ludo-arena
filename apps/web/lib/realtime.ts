@@ -39,7 +39,7 @@ export async function joinRoom(code:string,displayName:string):Promise<{room:Roo
   try{session=getSession()}catch{session=await createGuest(displayName)}
   const ws=await openSocket();
   return new Promise((resolve,reject)=>{
-    ws.onmessage=e=>{const message=JSON.parse(e.data);if(message.type==="ROOM_JOINED"){resolve({room:message.room as Room,gameId:message.gameId});if(message.gameId)ws.close()}else if(message.type==="ERROR"){ws.close();reject(new Error(message.code))}};
+    ws.onmessage=e=>{const message=JSON.parse(e.data);if(message.type==="ROOM_JOINED"){if(message.gameId){ws.close();resolve({room:message.room as Room,gameId:message.gameId})}}else if(message.type==="ERROR"){ws.close();reject(new Error(message.code))}};
     ws.send(JSON.stringify({type:"ROOM_JOIN",roomId:code,playerId:session.playerId,displayName:session.displayName,sessionToken:session.sessionToken}));
   });
 }
