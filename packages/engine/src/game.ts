@@ -63,8 +63,7 @@ export function createGame(playerIds: readonly PlayerId[], rules: RuleSet): Game
     turnStartedAt: null,
     turnExpiresAt: null,
     moveCount: 0,
-    leagueDeck: rules.name === "LEAGUE" ? createLeagueDeck().map((die) => die.value) : undefined,
-    leagueDeckIndex: rules.name === "LEAGUE" ? 0 : undefined
+    ...(rules.name === "LEAGUE" ? { leagueDeck: createLeagueDeck().map((die) => die.value), leagueDeckIndex: 0 } : {})
   };
 }
 
