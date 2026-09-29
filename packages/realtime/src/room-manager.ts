@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { GameSession } from "./game-session.js";
+import { createGame, startGame, STANDARD_RULES } from "@portable-ludo/engine";
 import type { GameStore } from "@portable-ludo/persistence";
 
 export class RoomManager {
