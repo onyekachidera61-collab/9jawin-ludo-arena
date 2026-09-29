@@ -33,9 +33,11 @@ export class GameStore {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      if (events.length === 0) throw new Error("EMPTY_TRANSITION");
+      const nextVersion = expectedVersion + events.length;
       const updated = await client.query(
-        "UPDATE games SET phase=$2,state_json=$3,version=version+1,updated_at=now() WHERE id=$1 AND version=$4 RETURNING version",
-        [id, state.phase, JSON.stringify(state), expectedVersion]
+        "UPDATE games SET phase=$2,state_json=$3,version=$4,updated_at=now() WHERE id=$1 AND version=$5 RETURNING version",
+        [id, state.phase, JSON.stringify(state), nextVersion, expectedVersion]
       );
       if (updated.rowCount !== 1) throw new Error("GAME_VERSION_CONFLICT");
       let sequence = expectedVersion;
@@ -47,7 +49,7 @@ export class GameStore {
         );
       }
       await client.query("COMMIT");
-      return expectedVersion + 1;
+      return nextVersion;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
