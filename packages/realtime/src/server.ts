@@ -139,7 +139,7 @@ wss.on("connection", (socket, request) => {
         const guest = await store.getGuestSession(claims.playerId, claims.nonce);
         if (!guest) throw new Error("INVALID_SESSION");
 
-        const room = await rooms.createLobby(guest.playerId, guest.displayName, parsed.playerCount);
+        const room = await rooms.createLobby(guest.playerId, guest.displayName, parsed.playerCount, parsed.ruleset);
         playerId = guest.playerId;
         gameId = null;
 
@@ -278,7 +278,6 @@ wss.on("connection", (socket, request) => {
           send(socket, { type: "MATCHMAKING_STATUS", status: "CANCELLED" } as ServerMessage);
           return;
         }
-        if (parsed.ruleset === "LEAGUE") throw new Error("LEAGUE_NOT_READY");
         const match = await store.enqueueMatchmaking(parsed.playerId, parsed.displayName, parsed.ruleset, parsed.playerCount);
         if (!match.matched) {
           playerId = parsed.playerId;
@@ -287,7 +286,7 @@ wss.on("connection", (socket, request) => {
           send(socket, { type: "MATCHMAKING_STATUS", status: "WAITING", playerCount: parsed.playerCount, ruleset: parsed.ruleset });
           return;
         }
-        const session = await rooms.create(match.playerIds);
+        const session = await rooms.create(match.playerIds, parsed.ruleset === "LEAGUE" ? (await import("@portable-ludo/engine")).LEAGUE_RULES : (await import("@portable-ludo/engine")).STANDARD_RULES);
         await session.start();
         playerId = parsed.playerId;
         gameId = session.gameId;
