@@ -118,7 +118,7 @@ export class GameSession {
   async start(): Promise<readonly GameEvent[]> {
     return this.enqueue(async () => {
       const result = startGame(this.state, this.rules);
-      await this.commit(result.state, result.events);
+      await this.commit(rolledState, result.events);
       return result.events;
     });
   }
@@ -126,10 +126,15 @@ export class GameSession {
   async roll(playerId: PlayerId): Promise<{ roll: number; events: readonly GameEvent[] }> {
     return this.enqueue(async () => {
       if (await this.expireIfNeeded(Date.now())) throw new Error("TURN_EXPIRED");
-      const result = recordRoll(this.state, rollDie(), playerId);
-      const moves = getLegalMoves(result.state, playerId, result.rollState.value, this.rules);
+      const league = this.rules.name === "LEAGUE";
+      const leagueIndex = this.state.leagueDeckIndex ?? 0;
+      if (league && (!this.state.leagueDeck || leagueIndex >= this.state.leagueDeck.length)) throw new Error("LEAGUE_DECK_EXHAUSTED");
+      const roll = league ? this.state.leagueDeck![leagueIndex]! : rollDie();
+      const result = recordRoll(this.state, roll, playerId);
+      const rolledState = league ? { ...result.state, leagueDeckIndex: leagueIndex + 1 } : result.state;
+      const moves = getLegalMoves(rolledState, playerId, result.rollState.value, this.rules);
       if (!moves.length) {
-        const resolved = resolveNoLegalMove(result.state, this.rules);
+        const resolved = resolveNoLegalMove(rolledState, this.rules);
         const events = result.events.concat(resolved.events);
         await this.commit(resolved.state, events);
         this.rollStates.delete(playerId);
