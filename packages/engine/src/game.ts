@@ -2,9 +2,8 @@ import { canMove, moveToken } from "./movement.js";
 import { playerScore } from "./score.js";
 import { absoluteTrackPosition, isSafeSquare } from "./board.js";
 import { canLandAt } from "./occupancy.js";
-import type { GameState, PlayerId, RuleSet, TokenId, PendingRoll } from "./types.js";
+import { STANDARD_RULES, type GameState, type PlayerId, type RuleSet, type TokenId, type PendingRoll } from "./types.js";
 
-const STANDARD_TURN_DURATION_MS = 15_000;
 
 export type GameEvent =
   | { type: "GAME_STARTED"; turnId: number; playerId: PlayerId }
@@ -61,7 +60,7 @@ export function createGame(playerIds: readonly PlayerId[], rules: RuleSet): Game
   };
 }
 
-export function startGame(state: GameState, now = Date.now()): TransitionResult {
+export function startGame(state: GameState, rules: RuleSet = STANDARD_RULES, now = Date.now()): TransitionResult {
   if (state.phase !== "WAITING") throw new Error("GAME_NOT_WAITING");
   const player = state.players[state.currentPlayerIndex];
   if (!player) throw new Error("CURRENT_PLAYER_MISSING");
@@ -72,7 +71,7 @@ export function startGame(state: GameState, now = Date.now()): TransitionResult 
       phase: "ACTIVE",
       turnId: 1,
       turnStartedAt: now,
-      turnExpiresAt: now + STANDARD_TURN_DURATION_MS
+      turnExpiresAt: now + rules.turnDurationMs
     },
     events: [{ type: "GAME_STARTED", turnId: 1, playerId: player.playerId }]
   };
