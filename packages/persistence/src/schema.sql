@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS game_snapshots (
 CREATE TABLE IF NOT EXISTS matchmaking_queue (
   id BIGSERIAL PRIMARY KEY,
   player_id TEXT NOT NULL,
+  display_name TEXT NOT NULL DEFAULT 'Player',
   ruleset TEXT NOT NULL,
   player_count INTEGER NOT NULL,
   status TEXT NOT NULL DEFAULT 'WAITING',
