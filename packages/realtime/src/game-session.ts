@@ -4,6 +4,8 @@ import {
   assertGameInvariants,
   createGame,
   getLegalMoves,
+  createTurnClock,
+  expireTurn,
   recordRoll,
   rollDie,
   startGame,
@@ -118,6 +120,7 @@ export class GameSession {
 
   async roll(playerId: PlayerId): Promise<{ roll: number; events: readonly GameEvent[] }> {
     return this.enqueue(async () => {
+      if (this.expireIfNeeded(Date.now())) throw new Error("TURN_EXPIRED");
       const result = recordRoll(this.state, rollDie(), playerId);
       await this.commit(result.state, result.events);
       this.rollStates.set(playerId, result.rollState);
@@ -127,6 +130,7 @@ export class GameSession {
 
   async move(playerId: PlayerId, tokenId: TokenId): Promise<readonly GameEvent[]> {
     return this.enqueue(async () => {
+      if (this.expireIfNeeded(Date.now())) throw new Error("TURN_EXPIRED");
       const rollState = this.rollStates.get(playerId);
       if (!rollState) throw new Error("NO_PENDING_ROLL");
 
@@ -138,5 +142,22 @@ export class GameSession {
       this.rollStates.delete(playerId);
       return result.events;
     });
+  }
+
+  async expireTurn(now = Date.now()): Promise<readonly GameEvent[]> {
+    return this.enqueue(async () => {
+      if (this.state.phase !== "ACTIVE" || this.state.turnStartedAt === null || this.state.turnExpiresAt === null) return [];
+      if (now < this.state.turnExpiresAt) return [];
+      const clock = createTurnClock(this.state, now, STANDARD_RULES);
+      const result = expireTurn(this.state, now, clock, STANDARD_RULES);
+      await this.commit(result.state, result.events);
+      this.rollStates.clear();
+      return result.events;
+    });
+  }
+
+  private expireIfNeeded(now: number): boolean {
+    if (this.state.phase !== "ACTIVE" || this.state.turnExpiresAt === null || now < this.state.turnExpiresAt) return false;
+    throw new Error("TURN_EXPIRED");
   }
 }
