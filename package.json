@@ -1,0 +1,16 @@
+{
+  "name": "portable-ludo",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "npm@11",
+  "engines": {"node": ">=22"},
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "npm run dev --workspace @portable-ludo/web",
+    "build": "npm run build --workspace @portable-ludo/web",
+    "lint": "npm run lint --workspace @portable-ludo/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "format:check": "npm run format:check --workspaces --if-present"
+  }
+}
