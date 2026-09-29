@@ -15,6 +15,7 @@ export type GameEvent =
   | { type: "TURN_ADVANCED"; turnId: number; playerId: PlayerId }
   | { type: "GAME_FINISHED"; turnId: number; playerId: PlayerId }
   | { type: "TURN_EXPIRED"; turnId: number; playerId: PlayerId }
+  | { type: "TIMEBANK_USED"; turnId: number; playerId: PlayerId; milliseconds: number }
   | { type: "PLAYER_MISSED_TURN"; turnId: number; playerId: PlayerId; missedTurns: number }
   | { type: "PLAYER_ELIMINATED"; turnId: number; playerId: PlayerId }
 
