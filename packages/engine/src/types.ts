@@ -34,6 +34,8 @@ export type GameState = {
   consecutiveSixes: number;
   winnerId: PlayerId | null;
   pendingRoll: PendingRoll | null;
+  turnStartedAt: number | null;
+  turnExpiresAt: number | null;
 };
 
 export type RuleSet = {
