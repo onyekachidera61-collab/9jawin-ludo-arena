@@ -115,7 +115,7 @@ wss.on("connection", (socket) => {
   });
 
   socket.on("close", () => {
-    if (playerId) socketsByPlayer.delete(playerId);
+    if (playerId && socketsByPlayer.get(playerId) === socket) socketsByPlayer.delete(playerId);
     if (playerId && gameId) rooms.get(gameId)?.disconnect(playerId);
   });
 });
