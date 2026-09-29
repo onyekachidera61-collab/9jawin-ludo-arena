@@ -11,7 +11,7 @@ describe("turn clock", () => {
   });
 
   it("expires only at or after the server deadline", () => {
-    const state = startGame(createGame(["p1", "p2"], STANDARD_RULES)).state;
+    const state = startGame(createGame(["p1", "p2"], STANDARD_RULES), STANDARD_RULES, 1_000).state;
     const clock = createTurnClock(state, 1_000, STANDARD_RULES);
     expect(isTurnExpired(clock, 15_999)).toBe(false);
     expect(isTurnExpired(clock, 16_000)).toBe(true);
