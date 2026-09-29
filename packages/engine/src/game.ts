@@ -217,7 +217,10 @@ export function applyMove(
     };
   }
 
-  const grantsExtra = rollState.value === 6 || captured !== null || events.some((event) => event.type === "TOKEN_REACHED_HOME");
+  const grantsExtra =
+    (rules.extraRollOnSix && rollState.value === 6) ||
+    (rules.extraRollOnCapture && captured !== null) ||
+    (rules.extraRollOnHome && events.some((event) => event.type === "TOKEN_REACHED_HOME"));
   if (grantsExtra && state.consecutiveSixes < 3) {
     return {
       state: { ...state, players },
