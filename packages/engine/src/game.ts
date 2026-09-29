@@ -106,23 +106,72 @@ export function applyMove(
   const tokens = player.tokens.map((candidate) =>
     candidate.tokenId === tokenId ? moved.token : candidate
   );
+  let captured: { playerIndex: number; tokenIndex: number; playerId: PlayerId; tokenId: TokenId } | null = null;
+  const movedTrack = trackPosition(player.colorIndex, moved.token.progress, rules);
+  if (movedTrack !== null && !rules.safeSquares.includes(movedTrack)) {
+    for (let opponentIndex = 0; opponentIndex < players.length; opponentIndex += 1) {
+      if (opponentIndex === playerIndex) continue;
+      const opponent = players[opponentIndex]!;
+      for (let tokenIndex = 0; tokenIndex < opponent.tokens.length; tokenIndex += 1) {
+        const opponentToken = opponent.tokens[tokenIndex]!;
+        const opponentTrack = trackPosition(opponent.colorIndex, opponentToken.progress, rules);
+        if (opponentTrack === movedTrack && opponentToken.progress !== rules.yardProgress) {
+          captured = {
+            playerIndex: opponentIndex,
+            tokenIndex,
+            playerId: opponent.playerId,
+            tokenId: opponentToken.tokenId
+          };
+          break;
+        }
+      }
+      if (captured) break;
+    }
+  }
+
+  const playersAfterCapture = captured
+    ? players.map((candidate, index) => {
+        if (index !== captured!.playerIndex) return candidate;
+        return {
+          ...candidate,
+          tokens: candidate.tokens.map((candidateToken, index) =>
+            index === captured!.tokenIndex
+              ? { ...candidateToken, progress: rules.yardProgress }
+              : candidateToken
+          )
+        };
+      })
+    : players;
+
   const updatedPlayer = {
     ...player,
     tokens,
     score: playerScore({ ...player, tokens })
   };
 
-  const players = state.players.map((candidate, index) =>
+  const players = playersAfterCapture.map((candidate, index) =>
     index === playerIndex ? updatedPlayer : candidate
   );
 
   const events: GameEvent[] = [{
+
     type: "TOKEN_MOVED",
     turnId: state.turnId,
     playerId: player.playerId,
     tokenId,
     distance: moved.distance
   }];
+
+  if (captured) {
+    events.push({
+      type: "TOKEN_CAPTURED",
+      turnId: state.turnId,
+      playerId: player.playerId,
+      tokenId,
+      capturedPlayerId: captured.playerId,
+      capturedTokenId: captured.tokenId
+    });
+  }
 
   if (moved.token.progress === rules.homeProgress && !token.homeMultiplierApplied) {
     events.push({
@@ -145,7 +194,7 @@ export function applyMove(
     };
   }
 
-  const grantsExtra = rollState.value === 6 || events.some((event) => event.type === "TOKEN_REACHED_HOME");
+  const grantsExtra = rollState.value === 6 || captured !== null || events.some((event) => event.type === "TOKEN_REACHED_HOME");
   if (grantsExtra && state.consecutiveSixes < 3) {
     return {
       state: { ...state, players },
@@ -182,6 +231,14 @@ export function advanceTurn(state: GameState, rules: RuleSet): TransitionResult 
       playerId: nextPlayer.playerId
     }]
   };
+}
+
+function trackPosition(colorIndex: number, progress: number, rules: RuleSet): number | null {
+  if (progress < 0 || progress > rules.trackLength - 1) return null;
+  const startOffsets = [0, 13, 26, 39] as const;
+  const start = startOffsets[colorIndex as 0 | 1 | 2 | 3];
+  if (start === undefined) return null;
+  return (start + progress) % rules.trackLength;
 }
 
 function findNextEligiblePlayer(state: GameState, currentIndex: number): number {
