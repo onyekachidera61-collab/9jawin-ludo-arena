@@ -8,12 +8,12 @@ export async function createGuest(displayName:string):Promise<Session>{
   const body=await response.json() as Record<string,unknown>;
   if(!response.ok) throw new Error(String(body.error||"GUEST_SESSION_FAILED"));
   const session=body as unknown as Session;
-  sessionStorage.setItem("portable-ludo-session",JSON.stringify(session));
+  localStorage.setItem("portable-ludo-session",JSON.stringify(session));
   return session;
 }
 
 export function getSession():Session{
-  const raw=sessionStorage.getItem("portable-ludo-session");
+  const raw=localStorage.getItem("portable-ludo-session");
   if(!raw) throw new Error("NO_GUEST_SESSION");
   return JSON.parse(raw) as Session;
 }
@@ -26,11 +26,11 @@ function openSocket():Promise<WebSocket>{
   });
 }
 
-export async function createRoom(session:Session,playerCount:2|4):Promise<Room>{
+export async function createRoom(session:Session,playerCount:2|4,ruleset:"STANDARD"|"LEAGUE"="STANDARD"):Promise<Room>{
   const ws=await openSocket();
   return new Promise((resolve,reject)=>{
     ws.onmessage=e=>{const message=JSON.parse(e.data);if(message.type==="ROOM_JOINED"){ws.close();resolve(message.room as Room)}else if(message.type==="ERROR"){ws.close();reject(new Error(message.code))}};
-    ws.send(JSON.stringify({type:"CREATE_ROOM",playerCount,sessionToken:session.sessionToken}));
+    ws.send(JSON.stringify({type:"CREATE_ROOM",playerCount,ruleset,sessionToken:session.sessionToken}));
   });
 }
 

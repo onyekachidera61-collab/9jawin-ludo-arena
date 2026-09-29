@@ -15,9 +15,9 @@ export type GameEvent =
   | { type: "TURN_ADVANCED"; turnId: number; playerId: PlayerId }
   | { type: "GAME_FINISHED"; turnId: number; playerId: PlayerId }
   | { type: "TURN_EXPIRED"; turnId: number; playerId: PlayerId }
+  | { type: "TIMEBANK_USED"; turnId: number; playerId: PlayerId; milliseconds: number }
   | { type: "PLAYER_MISSED_TURN"; turnId: number; playerId: PlayerId; missedTurns: number }
   | { type: "PLAYER_ELIMINATED"; turnId: number; playerId: PlayerId }
-  | { type: "TURN_ADVANCED"; turnId: number; playerId: PlayerId };
 
 export type RollState = {
   turnId: number;
@@ -47,6 +47,7 @@ export function createGame(playerIds: readonly PlayerId[], rules: RuleSet): Game
       score: 0,
       consecutiveMissedTurns: 0,
       eliminated: false,
+      timebankRemainingMs: rules.timebankMs,
       tokens: [0, 1, 2, 3].map((tokenId) => ({
         tokenId: tokenId as 0 | 1 | 2 | 3,
         progress: rules.yardProgress,

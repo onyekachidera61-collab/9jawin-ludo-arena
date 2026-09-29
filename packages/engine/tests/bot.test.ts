@@ -1,0 +1,2 @@
+import {describe,expect,it} from "vitest";import {chooseBotMove,createGame,startGame,recordRoll,STANDARD_RULES} from "../src/index.js";
+describe("bots",()=>{it("chooses only a server-legal move",()=>{const s=startGame(createGame(["a","b"],STANDARD_RULES),STANDARD_RULES).state;const r=recordRoll(s,6,"a");const token=chooseBotMove(r.state,6,STANDARD_RULES,"HARD");expect([0,1,2,3]).toContain(token)})});

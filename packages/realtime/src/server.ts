@@ -4,7 +4,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { clientMessageSchema, type ClientMessage, type ServerMessage } from "./protocol.js";
 import { RoomManager } from "./room-manager.js";
 import { issueSessionToken, verifySessionToken, verifySessionTokenClaims } from "./session-tokens.js";
-import type { TokenId } from "@portable-ludo/engine";
+import { chooseBotMove, STANDARD_RULES, type TokenId } from "@portable-ludo/engine";
 import { createPool, GameStore } from "@portable-ludo/persistence";
 
 const port = Number(process.env.PORT ?? 4000);
@@ -81,6 +81,65 @@ const httpServer = createServer(async (req, res) => {
     }
   }
 
+  if (req.url?.startsWith("/leaderboard") && req.method === "GET") {
+    try {
+      const query = new URL(req.url, "http://localhost").searchParams;
+      const limit = Number(query.get("limit") ?? 100);
+      const entries = await store.getLeaderboard(Number.isFinite(limit) ? limit : 100);
+      res.writeHead(200, {"content-type":"application/json","cache-control":"no-store"});
+      res.end(JSON.stringify({entries}));
+    } catch {
+      res.writeHead(500, {"content-type":"application/json"});
+      res.end(JSON.stringify({error:"LEADERBOARD_UNAVAILABLE"}));
+    }
+    return;
+  }
+
+  if (req.url?.startsWith("/replay?") && req.method === "GET") {
+    try {
+      const query = new URL(req.url, "http://localhost").searchParams;
+      const gameId = query.get("game");
+      if (!gameId || gameId.length > 64) throw new Error("INVALID_GAME");
+      const game = await store.loadGame(gameId);
+      if (!game || game.phase !== "FINISHED") throw new Error("REPLAY_NOT_AVAILABLE");
+      const events = await store.listGameEvents(gameId);
+      const snapshots = await store.listGameSnapshots(gameId);
+      res.writeHead(200, {"content-type":"application/json","cache-control":"no-store"});
+      res.end(JSON.stringify({gameId,ruleset:game.ruleset,events,snapshots}));
+    } catch (error) {
+      const code=error instanceof Error?error.message:"REPLAY_FAILED";
+      res.writeHead(code==="REPLAY_NOT_AVAILABLE"?404:400,{"content-type":"application/json"});
+      res.end(JSON.stringify({error:code}));
+    }
+    return;
+  }
+
+  if (req.url?.startsWith("/admin/game?") && req.method === "GET") {
+    const expected = process.env.ADMIN_SECRET;
+    const authorization = req.headers.authorization ?? "";
+    if (!expected || authorization !== `Bearer ${expected}`) {
+      res.writeHead(401,{"content-type":"application/json"});
+      res.end(JSON.stringify({error:"ADMIN_UNAUTHORIZED"}));
+      return;
+    }
+    try {
+      const query = new URL(req.url, "http://localhost").searchParams;
+      const gameId = query.get("game");
+      if (!gameId || gameId.length > 64) throw new Error("INVALID_GAME");
+      const game = await store.loadGame(gameId);
+      if (!game) throw new Error("GAME_NOT_FOUND");
+      const events = await store.listGameEvents(gameId);
+      await store.writeAdminAudit("admin","GAME_READ",gameId,{});
+      res.writeHead(200,{"content-type":"application/json","cache-control":"no-store"});
+      res.end(JSON.stringify({game,events}));
+    } catch (error) {
+      const code=error instanceof Error?error.message:"ADMIN_GAME_FAILED";
+      res.writeHead(code==="GAME_NOT_FOUND"?404:400,{"content-type":"application/json"});
+      res.end(JSON.stringify({error:code}));
+    }
+    return;
+  }
+
   res.writeHead(404);
   res.end();
 });
@@ -92,6 +151,7 @@ const store = new GameStore(createPool(databaseUrl));
 const rooms = new RoomManager(store);
 const socketsByPlayer = new Map<string, WebSocket>();
 const lobbySockets = new Map<string, Map<string, WebSocket>>();
+const botGames = new Map<string, { botIds: Set<string>; difficulty: "EASY"|"NORMAL"|"HARD" }>();
 
 function send(socket: WebSocket, message: ServerMessage): void {
   if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message));
@@ -129,6 +189,27 @@ wss.on("connection", (socket, request) => {
     }
 
     try {
+      if (parsed.type === "CREATE_BOT_GAME") {
+        const claims = verifySessionTokenClaims(parsed.sessionToken, sessionSecret);
+        const guest = await store.getGuestSession(claims.playerId, claims.nonce);
+        if (!guest) throw new Error("INVALID_SESSION");
+        const botCount = parsed.playerCount - 1;
+        const botIds = Array.from({length:botCount},()=>`bot-${randomUUID()}`);
+        const session = await rooms.create([guest.playerId, ...botIds], STANDARD_RULES);
+        await store.markBotGame(session.gameId, parsed.difficulty);
+        session.join(guest.playerId);
+        for (const botId of botIds) session.join(botId);
+        const events = await session.start();
+        playerId = guest.playerId;
+        gameId = session.gameId;
+        socketsByPlayer.set(playerId, socket);
+        send(socket, { type: "MATCHMAKING_STATUS", status: "MATCHED", gameId: session.gameId });
+        send(socket, { type: "EVENTS", gameId: session.gameId, events });
+        send(socket, { type: "STATE", gameId: session.gameId, state: session.snapshot().state });
+        botGames.set(session.gameId, { botIds: new Set(botIds), difficulty: parsed.difficulty });
+        return;
+      }
+
       if (parsed.type === "PING") {
         send(socket, { type: "PONG" });
         return;
@@ -139,7 +220,7 @@ wss.on("connection", (socket, request) => {
         const guest = await store.getGuestSession(claims.playerId, claims.nonce);
         if (!guest) throw new Error("INVALID_SESSION");
 
-        const room = await rooms.createLobby(guest.playerId, guest.displayName, parsed.playerCount);
+        const room = await rooms.createLobby(guest.playerId, guest.displayName, parsed.playerCount, parsed.ruleset);
         playerId = guest.playerId;
         gameId = null;
 
@@ -278,7 +359,6 @@ wss.on("connection", (socket, request) => {
           send(socket, { type: "MATCHMAKING_STATUS", status: "CANCELLED" } as ServerMessage);
           return;
         }
-        if (parsed.ruleset === "LEAGUE") throw new Error("LEAGUE_NOT_READY");
         const match = await store.enqueueMatchmaking(parsed.playerId, parsed.displayName, parsed.ruleset, parsed.playerCount);
         if (!match.matched) {
           playerId = parsed.playerId;
@@ -287,7 +367,7 @@ wss.on("connection", (socket, request) => {
           send(socket, { type: "MATCHMAKING_STATUS", status: "WAITING", playerCount: parsed.playerCount, ruleset: parsed.ruleset });
           return;
         }
-        const session = await rooms.create(match.playerIds);
+        const session = await rooms.create(match.playerIds, parsed.ruleset === "LEAGUE" ? (await import("@portable-ludo/engine")).LEAGUE_RULES : (await import("@portable-ludo/engine")).STANDARD_RULES);
         await session.start();
         playerId = parsed.playerId;
         gameId = session.gameId;
@@ -353,6 +433,28 @@ async function bootstrap(): Promise<void> {
 
   setInterval(async () => {
     try {
+      for (const [botGameId, bot] of botGames) {
+        const session = rooms.get(botGameId);
+        if (!session || session.snapshot().state.phase !== "ACTIVE") { botGames.delete(botGameId); continue; }
+        const state = session.snapshot().state;
+        const current = state.players[state.currentPlayerIndex];
+        if (!current || !bot.botIds.has(current.playerId)) continue;
+        try {
+          if (!state.pendingRoll) {
+            const result = await session.roll(current.playerId);
+            broadcast(botGameId,{type:"DICE_ROLLED",gameId:botGameId,turnId:state.turnId,playerId:current.playerId,roll:result.roll});
+            broadcast(botGameId,{type:"EVENTS",gameId:botGameId,events:result.events});
+          } else {
+            const tokenId = chooseBotMove(state,state.pendingRoll.value,STANDARD_RULES,bot.difficulty);
+            const events = await session.move(current.playerId,tokenId as TokenId);
+            broadcast(botGameId,{type:"EVENTS",gameId:botGameId,events});
+          }
+          broadcast(botGameId,{type:"STATE",gameId:botGameId,state:session.snapshot().state});
+        } catch (error) {
+          console.error(JSON.stringify({service:"portable-ludo-realtime",botError:error instanceof Error?error.message:"UNKNOWN_BOT_ERROR",gameId:botGameId}));
+        }
+      }
+
       const expired = await rooms.expireTurns(Date.now());
       for (const transition of expired) {
         broadcast(transition.gameId, {

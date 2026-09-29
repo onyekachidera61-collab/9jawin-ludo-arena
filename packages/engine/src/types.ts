@@ -15,6 +15,7 @@ export type PlayerState = {
   score: number;
   consecutiveMissedTurns: number;
   eliminated: boolean;
+  timebankRemainingMs?: number;
 };
 
 export type GamePhase = "WAITING" | "ACTIVE" | "FINISHED";
@@ -56,6 +57,7 @@ export type RuleSet = {
   threeSixesGrantExtraRoll: false;
   allowStacking: boolean;
   blockSize: number;
+  timebankMs?: number;
 };
 
 export const STANDARD_RULES: RuleSet = {
@@ -75,5 +77,6 @@ export const STANDARD_RULES: RuleSet = {
   multipleExtraRollsCollapse: true,
   threeSixesGrantExtraRoll: false,
   allowStacking: true,
-  blockSize: 2
+  blockSize: 2,
+  timebankMs: 0
 };
