@@ -53,4 +53,23 @@ describe("game transitions", () => {
     expect(moved.events.some((event) => event.type === "EXTRA_ROLL_GRANTED")).toBe(false);
     expect(moved.events.some((event) => event.type === "TURN_ADVANCED")).toBe(true);
   });
+  it("rejects landing on a configured opponent block", () => {
+    let state = startGame(createGame(["p1", "p2"], STANDARD_RULES)).state;
+    state = {
+      ...state,
+      players: state.players.map((player, index) =>
+        index === 1
+          ? {
+              ...player,
+              tokens: player.tokens.map((token, tokenIndex) =>
+                tokenIndex < 2 ? { ...token, progress: 39 } : token
+              )
+            }
+          : player
+      )
+    };
+    const rolled = recordRoll(state, 6, "p1");
+    expect(() => applyMove(rolled.state, rolled.rollState, 0, STANDARD_RULES)).toThrow("BLOCKED_DESTINATION");
+  });
+
 });
