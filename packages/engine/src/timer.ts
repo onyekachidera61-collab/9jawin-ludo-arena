@@ -46,7 +46,7 @@ export function expireTurn(state: GameState, now: number, clock: TurnClock, rule
   const currentPlayer = state.players[state.currentPlayerIndex]!;
   if ((currentPlayer.timebankRemainingMs ?? 0) > 0) {
     const extension = Math.min(currentPlayer.timebankRemainingMs ?? 0, rules.turnDurationMs);
-    const players = state.players.map((candidate, index) => index === state.currentPlayerIndex ? { ...candidate, timebankRemainingMs: candidate.timebankRemainingMs - extension } : candidate);
+    const players = state.players.map((candidate, index) => index === state.currentPlayerIndex ? { ...candidate, timebankRemainingMs: (candidate.timebankRemainingMs ?? 0) - extension } : candidate);
     return {
       state: { ...state, players, turnStartedAt: now, turnExpiresAt: now + extension, pendingRoll: null },
       events: [{ type: "TIMEBANK_USED", turnId: state.turnId, playerId: currentPlayer.playerId, milliseconds: extension }]

@@ -1,7 +1,7 @@
 name: verify
 on:
   push:
-    branches: [main, "feat/**"]
+    branches: [main, "feat/**", "fix/full-audit"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -13,14 +13,19 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm install
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase1-package-lock
+          path: package-lock.json
+          if-no-files-found: error
       - run: npm run typecheck
+      - run: npm run lint
       - run: npm test
-      - run: npm run build
+      - run: npm run build:all
