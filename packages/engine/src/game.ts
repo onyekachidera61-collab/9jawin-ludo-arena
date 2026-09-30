@@ -1,8 +1,9 @@
+import { createLeagueDeck } from "./league.js";
 import { canMove, moveToken } from "./movement.js";
 import { playerScore } from "./score.js";
 import { absoluteTrackPosition, isSafeSquare } from "./board.js";
 import { canLandAt } from "./occupancy.js";
-import { createLeagueDeck, STANDARD_RULES, type GameState, type PlayerId, type RuleSet, type TokenId, type PendingRoll } from "./types.js";
+import { STANDARD_RULES, type GameState, type PlayerId, type RuleSet, type TokenId, type PendingRoll } from "./types.js";
 
 
 export type GameEvent =
@@ -47,7 +48,7 @@ export function createGame(playerIds: readonly PlayerId[], rules: RuleSet): Game
       score: 0,
       consecutiveMissedTurns: 0,
       eliminated: false,
-      timebankRemainingMs: rules.timebankMs,
+      timebankRemainingMs: rules.timebankMs ?? 0,
       tokens: [0, 1, 2, 3].map((tokenId) => ({
         tokenId: tokenId as 0 | 1 | 2 | 3,
         progress: rules.yardProgress,

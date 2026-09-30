@@ -313,7 +313,7 @@ wss.on("connection", (socket, request) => {
         socketsByPlayer.set(playerId, socket);
         session.join(playerId);
         send(socket, { type: "ROOM_JOINED", room: activeLobby, players: result.players ?? [], gameId: result.gameId });
-        if ((result.players ?? []).some((p: any) => String(p.playerId).startsWith("bot-"))) botGames.set(result.gameId, { botIds: new Set((result.players ?? []).filter((p: any) => String(p.playerId).startsWith("bot-")).map((p: any) => String(p.playerId))), difficulty: activeLobby.botDifficulty === "EASY" || activeLobby.botDifficulty === "HARD" ? activeLobby.botDifficulty : "NORMAL" });
+        if ((result.players ?? []).some((p) => String(p.playerId).startsWith("bot-"))) botGames.set(result.gameId, { botIds: new Set((result.players ?? []).filter((p) => String(p.playerId).startsWith("bot-")).map((p) => String(p.playerId))), difficulty: activeLobby.botDifficulty === "EASY" || activeLobby.botDifficulty === "HARD" ? activeLobby.botDifficulty : "NORMAL" });
         send(socket, { type: "STATE", gameId: result.gameId, state: session.snapshot().state });
         return;
       }
