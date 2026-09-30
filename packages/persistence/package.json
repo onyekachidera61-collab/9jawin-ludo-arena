@@ -1,11 +1,1 @@
-{
-  "name":"@portable-ludo/persistence",
-  "version":"0.1.0",
-  "private":true,
-  "main":"dist/index.js",
-  "types":"dist/index.d.ts",
-  "type":"module",
-  "scripts":{"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit"},
-  "dependencies":{"@portable-ludo/engine":"file:../engine","pg":"^8.16.3"},
-  "devDependencies":{"@types/node":"^22.10.2","@types/pg":"^8.15.5","typescript":"^5.9.2"}
-}
+{"name":"@portable-ludo/persistence","version":"0.1.0","private":true,"main":"dist/index.js","types":"dist/index.d.ts","type":"module","scripts":{"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit","test":"vitest run --passWithNoTests","lint":"eslint src tests","format:check":"prettier --check src tests"},"dependencies":{"@portable-ludo/engine":"file:../engine","pg":"8.16.3"},"devDependencies":{"@types/node":"22.10.2","@types/pg":"8.15.5","typescript":"5.9.2","vitest":"3.2.4"}}
