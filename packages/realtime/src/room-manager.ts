@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { GameSession } from "./game-session.js";
-import { createGame,startGame,STANDARD_RULES,LEAGUE_RULES,type RuleSet } from "@portable-ludo/engine";
+import { createGame,startGame,STANDARD_RULES,LEAGUE_RULES,type GameEvent,type GameState,type RuleSet } from "@portable-ludo/engine";
 import type { GameStore } from "@portable-ludo/persistence";
 
 type RoomOptions={turnDurationMs:number;botSlots:number;botDifficulty:"EASY"|"NORMAL"|"HARD"};
+type RoomPlayer = Awaited<ReturnType<GameStore["getRoomPlayers"]>>[number];
+type JoinLobbyResult = {room: NonNullable<Awaited<ReturnType<GameStore["getRoom"]>>>;slotIndex:number;playerCount:number;shouldStart:boolean;gameId:string|null;players?:readonly RoomPlayer[];state?:GameState;events?:readonly GameEvent[]};
 
 export class RoomManager{
  private readonly sessions=new Map<string,GameSession>();
@@ -22,8 +24,8 @@ export class RoomManager{
  }
  async getLobby(roomIdOrCode:string){const room=await this.store.getRoom(roomIdOrCode);if(!room)return null;return {...room,players:await this.store.getRoomPlayers(room.id)}}
  private rulesFor(room:{ruleset:string;turnDurationMs:number}):RuleSet{const base=room.ruleset==="LEAGUE"?LEAGUE_RULES:STANDARD_RULES;return {...base,turnDurationMs:room.turnDurationMs}}
- async joinLobby(roomIdOrCode:string,playerId:string,displayName:string){
-  const joined=await this.store.joinRoom(roomIdOrCode,playerId,displayName);if(!joined.shouldStart)return joined;
+ async joinLobby(roomIdOrCode:string,playerId:string,displayName:string):Promise<JoinLobbyResult>{
+  const joined=await this.store.joinRoom(roomIdOrCode,playerId,displayName);if(!joined.shouldStart)return {...joined,gameId:null};
   const players=await this.store.getRoomPlayers(joined.room.id);
   const botsNeeded=joined.room.playerCount-players.length;
   for(let i=0;i<botsNeeded;i++){const botId=`bot-${randomUUID()}`;await this.store.addRoomPlayer(joined.room.id,botId,players.length+i,`Bot ${joined.room.botDifficulty}`)}
